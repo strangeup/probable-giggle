@@ -61,8 +61,42 @@ namespace TestSoln
    all_clamped= 7,
    opposite_clamped_opposite_free = 8 ,
    opposite_pinned_free_clamped = 9 ,
-   opposite_free_opposite_pinned = 10
+   opposite_free_opposite_pinned = 10 ,
+   manufactured = 11
    };
+
+ // Manufactured solution
+ void manufactured_solution(const Vector<double>& posn, Vector<double>& w)
+   {
+   const double x=posn[0], y=posn[1], a = 5.0;
+ //  w[0] =   sin(a*x)*cos(a*y);
+ //  w[1] = a*cos(a*x)*cos(a*y);
+ //  w[2] =-a*sin(a*x)*sin(a*y);
+ //  w[3] =-a*a*sin(a*x)*cos(a*y);
+ //  w[4] =-a*a*cos(a*x)*sin(a*y);
+ //  w[5] =-a*a*sin(a*x)*cos(a*y);
+ //
+    double (*Power)(double base, int exponent) = &std::pow;
+    w[0]= -(Power(-4 + Power(x,2),2)*(-1 + Power(y,2)))/16.;
+    w[1]=-(x*(-4 + Power(x,2))*(-1 + Power(y,2)))/4.;
+    w[2]=-(Power(-4 + Power(x,2),2)*y)/8.;
+    w[3]=-((-4 + 3*Power(x,2))*(-1 + Power(y,2)))/4.;
+    w[4]=-(x*(-4 + Power(x,2))*y)/2.;
+    w[5]=-Power(-4 + Power(x,2),2)/8.;
+   }
+
+ // Manufactured solution right hand side 
+ void manufactured_pressure(const Vector<double>& posn, double& pressure)
+   {
+   // Create Alias so we can output straight from mathematica
+   const double x=posn[0], y=posn[1], a = 5.0;
+   double (*Power)(double base, int exponent) = &std::pow;
+//   double (*Sin)(double arg) = &std::sin;
+//   double (*Cos)(double arg) = &std::cos;
+   // Mathematica output
+   //pressure = 4*Power(a,4)*Cos(a*y)*Sin(a*x);
+   pressure = (11 - 6*Power(x,2) - 3*Power(y,2))/2. ;
+   }
 
  // The boundaries are enumerated as follows:
  //
@@ -84,7 +118,7 @@ namespace TestSoln
 
  /// Nondim length of strip (width is lengthscale and therefore 1)
  // length is in the y-direction, width=1 in y
- double Length_of_strip=2.0; 
+ double Length_of_strip=1.0; 
 
  /// Poisson's ratio
  double nu = 0.3; /// hierher FvK parameter (Poisson's ratio)
@@ -99,6 +133,8 @@ namespace TestSoln
  double Kirchhoff_shear = 0.0;
 
  double exact_soln_max_terms_in_expansion=50;
+
+ bool High_resolution = false;
  
   /// Perturbation
  double P_cos=1.0;
@@ -139,6 +175,7 @@ namespace TestSoln
     // Cases with all Angle imposed boundary conditions.
     case TestSoln::opposite_clamped_opposite_sliding :
     case::TestSoln::all_clamped :
+    case TestSoln::manufactured :
       return false; break;
 
     // Default to all pinned
@@ -161,8 +198,10 @@ namespace TestSoln
   switch (TestSoln::boundary_case)
    {
     // All boundaries pinned
-    case TestSoln::opposite_pinned_opposite_clamped : case TestSoln::all_pinned :
-    case TestSoln::all_clamped :
+    case TestSoln::opposite_pinned_opposite_clamped : 
+    case TestSoln::all_pinned :
+    case TestSoln::all_clamped : 
+    case TestSoln::manufactured :
       return true;  break; 
     // All except boundary 1 pinned, 1 free
     case TestSoln::three_pinned : 
@@ -200,15 +239,30 @@ namespace TestSoln
  }
 
   // Assigns the value of pressure depending on the position (x,y)
-  void get_pressure(const Vector<double>& x, double& pressure)
+  void get_pressure(const Vector<double>& coord, double& pressure)
   {
    // Return the (constant) pressure
-   pressure = P_cos; 
+   if(boundary_case != manufactured )
+    { pressure = P_cos; }
+   else 
+    {
+     manufactured_pressure(coord,pressure);
+     pressure *= P_cos;
+//     // Create alias
+//     double x (coord[0]), y(coord[1]), a = 1/2.;
+//     double (*Power)(double base, int exponent) = &std::pow;
+//     double (*Sin)(double arg) = &std::sin;
+//     double (*Cos)(double arg) = &std::cos;
+//     pressure =  P_cos * Power(a,2)*(-8*a*x*y*Cos(a*x*y) + 
+//         (-4 + Power(a,2)*Power(Power(x,2) + Power(y,2),2))*Sin(a*x*y));
+    }
   }
  
   // Get the exact solution
   void get_exact_w(const Vector<double>& x, Vector<double>& exact_w)
   {
+    // Short circuit
+    // easy_test(x,exact_w); return;
     // We assume the dimensions of the strip are a, b with b=1
     double a=Length_of_strip;
     // Copy of the position Vector
@@ -226,7 +280,7 @@ namespace TestSoln
 
      case opposite_pinned_opposite_free:
        // Get the solution
-       rectangle_pfpf(xp,Length_of_strip,nu,exact_w); break;
+       rectangle_pfpf(xp,Length_of_strip,nu,exact_w,25); break;
 
      case opposite_pinned_opposite_clamped:
        // Get the solution
@@ -240,11 +294,36 @@ namespace TestSoln
        // Get the solution
        rectangle_psps(xp,a,exact_w);  break;
 
+     case manufactured:
+      {
+      manufactured_solution(x,exact_w);
+      // double a = 1/2.;
+      // // Get the solution
+      // exact_w[0] = sin(a*x[0]*x[1]);
+      // exact_w[1] = a*x[1]*cos(a*x[0]*x[1]);
+      // exact_w[2] = a*x[0]*cos(a*x[0]*x[1]);
+      // exact_w[3] =-std::pow(a*x[1],2)*sin(a*x[0]*x[1]);
+      // exact_w[4] = a*(cos(a*x[0]*x[1]) 
+      //            - a*x[0]*x[1]*sin(a*x[0]*x[1]));
+      // exact_w[5] =-std::pow(a*x[0],2)*sin(a*x[0]*x[1]);
+      }
+     break;
+
      default: break;
     }
   // Analytic solutions are for p=1, but because it is linear we can just rescale
   for(unsigned ideriv=0;ideriv<exact_w.size();++ideriv)
-   { exact_w[ideriv]*=P_cos;}
+   { 
+    exact_w[ideriv]*=P_cos;
+   }
+  // We must swap the x-y derivatives for all cases EXCEPT manufactured to remain
+  // consistent
+  if(boundary_case != manufactured )
+   {
+    // Swap x and y derivatives to remain consistent
+    std::swap(exact_w[1],exact_w[2]);
+    std::swap(exact_w[3],exact_w[5]);
+   }
   }
 }
 
@@ -281,8 +360,8 @@ public:
   /// Update the problem specs before solve: Re-apply boundary conditons
   void actions_before_newton_solve()
   {
+    // This will also reapply boundary conditions
     complete_problem_setup();
-    apply_boundary_conditions();
   }
  
  /// Doc the solution
@@ -317,6 +396,30 @@ public:
       
     } // end loop over boundaries
   }
+
+  void set_dofs_to_exact_solution()
+    {
+     // Get total number of nodes
+     unsigned n_node  =Bulk_mesh_pt->nnode();
+     // Loop over nodes
+     for(unsigned inod=0;inod<n_node;++inod)
+      {
+       // Get node
+       Node* nod_pt=Bulk_mesh_pt->node_pt(inod);
+       // Set value
+       // Initialise node_position and exact_w
+       Vector<double> node_position(2,0.0), exact_w(6,0.0);
+       node_position[0] =  nod_pt->x(0);
+       node_position[1] =  nod_pt->x(1);
+       // Get exact solution
+       TestSoln::get_exact_w(node_position,exact_w);
+       // Loop over nodes
+       for(unsigned idof=0;idof<6;++idof)
+        {
+         nod_pt->set_value(idof,exact_w[idof]);
+        }
+      }
+    }
 private:
  
   /// Trace file to document norm of solution
@@ -525,8 +628,6 @@ Element_area(element_area)
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
 {  
- // Apply boundary conditions
- apply_boundary_conditions();
  // -------------------------------------------------------------------
  // Complete the build of all elements so they are fully functional
  const unsigned n_element = Bulk_mesh_pt->nelement();
@@ -557,18 +658,28 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
  // loop over boundaries
  for(unsigned ibound=0;ibound<nbound;ibound++)
   {
-   // If the boundary is to be pinned
-   if(TestSoln::is_boundary_pinned(ibound))
+   const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
+   for (unsigned inod=0;inod<num_nod;inod++)
     {
-     const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
-     for (unsigned inod=0;inod<num_nod;inod++)
+     // Get node
+     Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
+     // Initialise node_position and exact_w
+     Vector<double> node_position(2,0.0), exact_w(6,0.0);
+     node_position[0] =  nod_pt->x(0);
+     node_position[1] =  nod_pt->x(1);
+     // All other cases are homogenous boundary conditions
+     if(TestSoln::boundary_case == TestSoln::manufactured)
+       {
+        // Get the value on the boundary
+        TestSoln::get_exact_w(node_position,exact_w);
+       } 
+     
+     // If the boundary is to be pinned
+     if(TestSoln::is_boundary_pinned(ibound))
       {
-       // Get node
-       Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
-       
        // Pin unknown values
        nod_pt->pin(0);   // w
-       nod_pt->set_value(0,0.0); // w
+       nod_pt->set_value(0,exact_w[0]); // w
        
        // Pin the tangent derivatives
        // On even boundaries y is tangent direction
@@ -576,55 +687,55 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
         {
          // Pin tangent derivative dwdy
          nod_pt->pin(2);   
-         nod_pt->set_value(2,0.0); 
+         nod_pt->set_value(2,exact_w[2]); 
          // Pin second tangent derivative d2wdy2
          nod_pt->pin(5);
-         nod_pt->set_value(5,0.0); 
+         nod_pt->set_value(5,exact_w[5]); 
         }
        // On odd boundaries x is tangent direction
        else /*if (ibound % 2 ==1)*/
         {
          // Pin tangent derivative dwdx
          nod_pt->pin(1);
-         nod_pt->set_value(1,0.0); 
+         nod_pt->set_value(1,exact_w[1]); 
          // Pin second tangent derivative d2wdx2
          nod_pt->pin(3);
-         nod_pt->set_value(3,0.0); 
+         nod_pt->set_value(3,exact_w[3]); 
         }            
       } // for (inod<num_nod)
-   }
- 
-   // If the angle is to be set
-   if(TestSoln::is_boundary_at_zero_slope(ibound))
-    {
-     const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
-     for (unsigned inod=0;inod<num_nod;inod++)
+     // If the angle is to be set
+     if(TestSoln::is_boundary_at_zero_slope(ibound))
       {
        // Get node
        Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
        // Pin the cross derivative 
        // d2wdydx
        nod_pt->pin(4);   
-       nod_pt->set_value(4,0.0);
+       nod_pt->set_value(4,exact_w[4]);
        
        // Pin the normal derivatives
        // On odd boundaries normal is y
        if(ibound % 2 == 1) 
         {
          nod_pt->pin(2);   // dwdy
-         nod_pt->set_value(2,0.0);
+         nod_pt->set_value(2,exact_w[2]);
         }
        // On even boundaries normal is x
        if (ibound % 2 == 0) // even boundaries
         {
          nod_pt->pin(1);   // dwdx
-         nod_pt->set_value(1,0.0);
+         nod_pt->set_value(1,exact_w[1]);
         }
-      } // for (inod<num_nod)
-    } // end if 
+      } // end if
+
+    // if(TestSoln::boundary_case == TestSoln::manufactured)
+    //  {
+    //   for(unsigned i=0;i<6;++i)
+    //   { nod_pt->pin(i); nod_pt->set_value(i,exact_w[i]);}
+    //  }
+    } // end for 
     
    // Get number of nodes on ibound 
-   const unsigned num_nod=this->Bulk_mesh_pt->nboundary_node(ibound);
    for (unsigned inod=0;inod<num_nod;inod++)
     {
      // Get node
@@ -675,8 +786,10 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
   this->Bulk_mesh_pt->output(some_file,npts);
   some_file.close();
 
-
-  npts = 5;
+  if (TestSoln::High_resolution)
+   {npts = 25;}
+  else
+   {npts = 5;}
   sprintf(filename,"%s/soln%i-%i-%f.dat",
           doc_info.directory().c_str(),
           doc_info.number(),TestSoln::boundary_case,
@@ -716,11 +829,14 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
  // 6 - this may need tidying up 
  Vector<double> u_0(12,0.0);
  dynamic_cast<ELEMENT*>(geom_obj_pt)->interpolated_u_biharmonic(s,u_0);
- oomph_info << "w in the middle: " << std::setprecision(15) << u_0[0] << std::endl;
+ oomph_info << "w in the middle: " << u_0[0] << std::endl;
 
+ // Get the precision
+ const unsigned default_precision = Trace_file.precision();
  // Print to trace file
- Trace_file << std::setprecision(15) << u_0[0] << std::endl;
-
+ Trace_file.precision(15);
+ Trace_file << u_0[0] << std::endl;
+ Trace_file.precision(default_precision);
  // Doc error and return of the square of the L2 error
  //---------------------------------------------------
  if(!TestSoln::has_no_analytic_solution())
@@ -795,6 +911,8 @@ int main(int argc, char **argv)
  // 1Pcos
  CommandLineArgs::specify_command_line_flag("--p", &TestSoln::P_cos);
 
+ // Output solutions in high res
+ CommandLineArgs::specify_command_line_flag("--high_resolution");
  // -------------------------------------------------------------------------
  // Adaptation parameters
  // -------------------------------------------------------------------------
@@ -818,6 +936,9 @@ int main(int argc, char **argv)
  // Set the Poisson's ratio
  CommandLineArgs::specify_command_line_flag("--nu", &TestSoln::nu);
 
+ // Set the Poisson's ratio
+ CommandLineArgs::specify_command_line_flag("--nu", &TestSoln::Length_of_strip);
+
  // Boundary case as an unsigned
  int boundary_case_num=0;
  CommandLineArgs::specify_command_line_flag("--case", &boundary_case_num);
@@ -828,6 +949,10 @@ int main(int argc, char **argv)
  
  // Doc what has actually been specified on the command line
  CommandLineArgs::doc_specified_flags();
+
+ // Output in high resolution
+ TestSoln::High_resolution = CommandLineArgs::
+   command_line_flag_has_been_set("--high_resolution");
  // -------------------------------------------------------------------------
  // Flag for bad user input
  bool invalid_input=false;
@@ -866,6 +991,9 @@ int main(int argc, char **argv)
  else if (boundary_case_num==int(TestSoln::opposite_pinned_free_clamped))
   TestSoln::boundary_case=TestSoln::opposite_pinned_free_clamped;
 
+ else if (boundary_case_num==int(TestSoln::manufactured))
+  TestSoln::boundary_case=TestSoln::manufactured;
+
  else // Default to what is set in TestSoln
   { 
    oomph_info<<"Boundary case \""<<boundary_case_num<<"\" not recognised.\n";
@@ -900,6 +1028,7 @@ int main(int argc, char **argv)
   oomph_info<<"                      8 - opposite_clamped_opposite_free\n";
   oomph_info<<"                      9 - opposite_pinned_free_clamped\n";
   oomph_info<<"                     10 - opposite_free_opposite_pinned\n";
+  oomph_info<<"                     11 - manufactured solution\n";
                  
   // Terminate here
   return(0);
@@ -916,6 +1045,9 @@ int main(int argc, char **argv)
  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,3> > problem(element_area);
 
  problem.max_newton_iterations()=1;
+ problem.set_dofs_to_exact_solution();
+//  problem.doc_solution(doc_info);
+//  exit(0);
  // Get some timings
  double tt_start = 0.0;
  if (Global_timings::Doc_comprehensive_timings)
@@ -923,9 +1055,6 @@ int main(int argc, char **argv)
      tt_start=TimingHelpers::timer();
   }
 
- //Output solution
- problem.doc_solution(doc_info);
- 
  // Loop over the number of steps
  for (unsigned s = 0; s < n_step; s++)
   {
