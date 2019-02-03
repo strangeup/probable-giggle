@@ -5,7 +5,7 @@ OOMPH_ROOT_DIR=$(make -s --no-print-directory print-top_builddir)
 
 
 #Set the number of tests to be checked
-NUM_TESTS=1
+NUM_TESTS=2
 
 
 # Setup validation directory
@@ -18,7 +18,7 @@ mkdir Validation
 #----------------------------
 cd Validation
 
-echo "Running Bernadou Basis p3 validation "
+echo "Running linear bending validation"
 mkdir RESLT
 ../rectangular_sheet_kpb --validation > OUTPUT_rectangular_sheet_kpb
 echo "done"
@@ -30,13 +30,32 @@ echo "Validation directory: " >> validation.log
 echo " " >> validation.log
 echo "  " `pwd` >> validation.log
 echo " " >> validation.log
-cat RESLT/trace.dat > rectangular_sheet_kpb_results.dat
+cat RESLT/trace.dat > rectangular_sheet_kpb_results_1.dat
 
 if test "$1" = "no_fpdiff"; then
   echo "dummy [OK] -- Can't run fpdiff.py because we don't have python or validata" >> validation.log
 else
-  ../../../bin/fpdiff.py ../validata/rectangular_sheet_kpb_result.dat.gz   \
-  rectangular_sheet_kpb_results.dat  >> validation.log
+  ../../../bin/fpdiff.py ../validata/rectangular_sheet_kpb_result_1.dat.gz   \
+  rectangular_sheet_kpb_results_1.dat  >> validation.log
+fi
+
+../run_code.sh ../rectangular_sheet_kpb | tee OUTPUT_rectangular_sheet_kpb
+echo "done"
+echo " " >> validation.log
+echo "Linear Bending validation" >> validation.log
+echo "------------------------------------------" >> validation.log
+echo " " >> validation.log
+echo "Validation directory: " >> validation.log
+echo " " >> validation.log
+echo "  " `pwd` >> validation.log
+echo " " >> validation.log
+cat errors.dat > rectangular_sheet_kpb_results_2.dat
+
+if test "$1" = "no_fpdiff"; then
+  echo "dummy [OK] -- Can't run fpdiff.py because we don't have python or validata" >> validation.log
+else
+  ../../../bin/fpdiff.py ../validata/rectangular_sheet_kpb_result_2.dat.gz   \
+  rectangular_sheet_kpb_results_2.dat  >> validation.log
 fi
 
 # Append output to global validation log file
