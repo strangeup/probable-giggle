@@ -68,33 +68,24 @@ namespace TestSoln
  // Manufactured solution
  void manufactured_solution(const Vector<double>& posn, Vector<double>& w)
    {
-   const double x=posn[0], y=posn[1], a = 5.0;
- //  w[0] =   sin(a*x)*cos(a*y);
- //  w[1] = a*cos(a*x)*cos(a*y);
- //  w[2] =-a*sin(a*x)*sin(a*y);
- //  w[3] =-a*a*sin(a*x)*cos(a*y);
- //  w[4] =-a*a*cos(a*x)*sin(a*y);
- //  w[5] =-a*a*sin(a*x)*cos(a*y);
- //
-    double (*Power)(double base, int exponent) = &std::pow;
-    w[0]= -(Power(-4 + Power(x,2),2)*(-1 + Power(y,2)))/16.;
-    w[1]=-(x*(-4 + Power(x,2))*(-1 + Power(y,2)))/4.;
-    w[2]=-(Power(-4 + Power(x,2),2)*y)/8.;
-    w[3]=-((-4 + 3*Power(x,2))*(-1 + Power(y,2)))/4.;
-    w[4]=-(x*(-4 + Power(x,2))*y)/2.;
-    w[5]=-Power(-4 + Power(x,2),2)/8.;
+   // Create Alias so we can output straight from mathematica
+   const double x=posn[0], y=posn[1];
+   double (*Power)(double base, int exponent) = &std::pow;
+   w[0]= -(Power(-4 + Power(x,2),2)*(-1 + Power(y,2)))/16.;
+   w[1]=-(x*(-4 + Power(x,2))*(-1 + Power(y,2)))/4.;
+   w[2]=-(Power(-4 + Power(x,2),2)*y)/8.;
+   w[3]=-((-4 + 3*Power(x,2))*(-1 + Power(y,2)))/4.;
+   w[4]=-(x*(-4 + Power(x,2))*y)/2.;
+   w[5]=-Power(-4 + Power(x,2),2)/8.;
    }
 
  // Manufactured solution right hand side 
  void manufactured_pressure(const Vector<double>& posn, double& pressure)
    {
    // Create Alias so we can output straight from mathematica
-   const double x=posn[0], y=posn[1], a = 5.0;
+   const double x=posn[0], y=posn[1];
    double (*Power)(double base, int exponent) = &std::pow;
-//   double (*Sin)(double arg) = &std::sin;
-//   double (*Cos)(double arg) = &std::cos;
    // Mathematica output
-   //pressure = 4*Power(a,4)*Cos(a*y)*Sin(a*x);
    pressure = (11 - 6*Power(x,2) - 3*Power(y,2))/2. ;
    }
 
@@ -172,6 +163,10 @@ namespace TestSoln
     case TestSoln::opposite_clamped_opposite_free : 
       return ibound==0 || ibound==2; break;
 
+    // Case with only a single side clamped
+    case TestSoln::opposite_pinned_free_clamped : 
+      return ibound!=3; break;
+
     // Cases with all Angle imposed boundary conditions.
     case TestSoln::opposite_clamped_opposite_sliding :
     case::TestSoln::all_clamped :
@@ -244,17 +239,11 @@ namespace TestSoln
    // Return the (constant) pressure
    if(boundary_case != manufactured )
     { pressure = P_cos; }
+   // Case with the non constant pressure
    else 
     {
      manufactured_pressure(coord,pressure);
      pressure *= P_cos;
-//     // Create alias
-//     double x (coord[0]), y(coord[1]), a = 1/2.;
-//     double (*Power)(double base, int exponent) = &std::pow;
-//     double (*Sin)(double arg) = &std::sin;
-//     double (*Cos)(double arg) = &std::cos;
-//     pressure =  P_cos * Power(a,2)*(-8*a*x*y*Cos(a*x*y) + 
-//         (-4 + Power(a,2)*Power(Power(x,2) + Power(y,2),2))*Sin(a*x*y));
     }
   }
  
@@ -297,15 +286,6 @@ namespace TestSoln
      case manufactured:
       {
       manufactured_solution(x,exact_w);
-      // double a = 1/2.;
-      // // Get the solution
-      // exact_w[0] = sin(a*x[0]*x[1]);
-      // exact_w[1] = a*x[1]*cos(a*x[0]*x[1]);
-      // exact_w[2] = a*x[0]*cos(a*x[0]*x[1]);
-      // exact_w[3] =-std::pow(a*x[1],2)*sin(a*x[0]*x[1]);
-      // exact_w[4] = a*(cos(a*x[0]*x[1]) 
-      //            - a*x[0]*x[1]*sin(a*x[0]*x[1]));
-      // exact_w[5] =-std::pow(a*x[0],2)*sin(a*x[0]*x[1]);
       }
      break;
 
@@ -355,13 +335,17 @@ public:
   };
  
   /// Update after solve (empty)
-  void actions_after_newton_solve() { }
+  void actions_after_newton_solve() 
+   {
+   }
   
   /// Update the problem specs before solve: Re-apply boundary conditons
   void actions_before_newton_solve()
   {
     // This will also reapply boundary conditions
     complete_problem_setup();
+    // Reassign the equation numbers
+    assign_equation_numbers();
   }
  
  /// Doc the solution
@@ -397,6 +381,7 @@ public:
     } // end loop over boundaries
   }
 
+  // Set the dofs to the exact solution
   void set_dofs_to_exact_solution()
     {
      // Get total number of nodes
@@ -420,6 +405,23 @@ public:
         }
       }
     }
+
+ // Unpin all of the dofs
+  void unpin_all_dofs()
+    {
+     // Get total number of nodes
+     unsigned n_node  =Bulk_mesh_pt->nnode();
+     // Loop over nodes
+     for(unsigned inod=0;inod<n_node;++inod)
+      {
+       // Get node
+       Node* nod_pt=Bulk_mesh_pt->node_pt(inod);
+       const unsigned ndof_type=6;
+       for(unsigned i=0;i<ndof_type;++i)
+        {nod_pt->unpin(i);}
+      }
+    }
+
 private:
  
   /// Trace file to document norm of solution
@@ -431,6 +433,19 @@ private:
   /// \short Helper function to (re-)set boundary condition
   /// and //complete the build of  all elements
   void complete_problem_setup();
+
+  /// Helper function to (re-)set equation numbers for problem
+  void assign_equation_numbers()
+   {
+   // Assign equations numbers
+   oomph_info << "Number of equations: "
+              << this->assign_eqn_numbers() << '\n';  
+   
+   this->eigen_solver_pt() = new LAPACK_QZ; 
+   
+   // Document the number of elements in the mesh
+   oomph_info << "Number of elements: " << Bulk_mesh_pt->nelement() << std::endl;
+   }
   
   /// Pointers to specific mesh
   TriangleMesh<ELEMENT>* Bulk_mesh_pt;
@@ -599,14 +614,9 @@ Element_area(element_area)
  // Complete the problem setup
  complete_problem_setup();
  
- // Assign equations numbers
- oomph_info << "Number of equations: "
-            << this->assign_eqn_numbers() << '\n';  
+ // Assign the equation numbers
+ assign_equation_numbers();
  
- this->eigen_solver_pt() = new LAPACK_QZ; 
- 
- // Document the number of elements in the mesh
- oomph_info << "Number of elements: " << Bulk_mesh_pt->nelement() << std::endl;
 
  // Clean up
  delete outer_boundary_pt;
@@ -650,6 +660,9 @@ void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
 {
+ // First reset any boundary conditions
+ unpin_all_dofs();
+
  // Print helpful message
  oomph_info<<"Applying boundary conditions to the sheet."<<std::endl;
  // Loop over outer boundary and pin the nodes on the boundaries
@@ -727,12 +740,6 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
          nod_pt->set_value(1,exact_w[1]);
         }
       } // end if
-
-    // if(TestSoln::boundary_case == TestSoln::manufactured)
-    //  {
-    //   for(unsigned i=0;i<6;++i)
-    //   { nod_pt->pin(i); nod_pt->set_value(i,exact_w[i]);}
-    //  }
     } // end for 
     
    // Get number of nodes on ibound 
@@ -835,7 +842,7 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
  const unsigned default_precision = Trace_file.precision();
  // Print to trace file
  Trace_file.precision(15);
- Trace_file << u_0[0] << std::endl;
+ Trace_file <<Element_area <<" "<< u_0[0] << (TestSoln::has_no_analytic_solution() ? '\n' : ' ');
  Trace_file.precision(default_precision);
  // Doc error and return of the square of the L2 error
  //---------------------------------------------------
@@ -852,6 +859,7 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
                            dummy_error,zero_norm);
 
  oomph_info<<"L2 Error w : "<<sqrt(dummy_error)<<"\n";
+ Trace_file<<sqrt(dummy_error)<<std::endl;
  some_file.close();
 
  // Doc error and return of the square of the L2 error
@@ -865,7 +873,7 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
  some_file<<"### L2 Norm\n";
  some_file<<"##  Format: err^2 norm^2 log(err/norm) \n";
  // Print error in prescribed format
-  some_file<< dummy_error <<" "<< zero_norm <<" ";
+ some_file<< dummy_error <<" "<< zero_norm <<" ";
 
  // Only divide by norm if its nonzero
  if(dummy_error!=0 && zero_norm!=0)
@@ -913,6 +921,10 @@ int main(int argc, char **argv)
 
  // Output solutions in high res
  CommandLineArgs::specify_command_line_flag("--high_resolution");
+
+ // Output solutions in high res
+ CommandLineArgs::specify_command_line_flag("--validation");
+
  // -------------------------------------------------------------------------
  // Adaptation parameters
  // -------------------------------------------------------------------------
@@ -958,42 +970,11 @@ int main(int argc, char **argv)
  bool invalid_input=false;
 
  // Assign the boundary case
- if (boundary_case_num==int(TestSoln::all_pinned))
-  TestSoln::boundary_case=TestSoln::all_pinned;
-
- else if (boundary_case_num==int(TestSoln::three_pinned))
-  TestSoln::boundary_case=TestSoln::three_pinned;
-
- else if (boundary_case_num==int(TestSoln::opposite_pinned_opposite_free))
-  TestSoln::boundary_case=TestSoln::opposite_pinned_opposite_free;
-
- else if (boundary_case_num==int(TestSoln::corners_pinned))
-  TestSoln::boundary_case=TestSoln::corners_pinned;
-
- else if (boundary_case_num==int(TestSoln::opposite_pinned_opposite_clamped))
-  TestSoln::boundary_case=TestSoln::opposite_pinned_opposite_clamped;
-
- else if (boundary_case_num==int(TestSoln::opposite_clamped_opposite_sliding))
-  TestSoln::boundary_case=TestSoln::opposite_clamped_opposite_sliding;
-
- else if (boundary_case_num==int(TestSoln::opposite_pinned_opposite_sliding))
-  TestSoln::boundary_case=TestSoln::opposite_pinned_opposite_sliding;
-
- else if (boundary_case_num==int(TestSoln::all_clamped))
-  TestSoln::boundary_case=TestSoln::all_clamped;
-
- else if (boundary_case_num==int(TestSoln::opposite_clamped_opposite_free))
-  TestSoln::boundary_case=TestSoln::opposite_clamped_opposite_free;
-
- else if (boundary_case_num==int(TestSoln::opposite_free_opposite_pinned))
-  TestSoln::boundary_case=TestSoln::opposite_free_opposite_pinned;
-
- else if (boundary_case_num==int(TestSoln::opposite_pinned_free_clamped))
-  TestSoln::boundary_case=TestSoln::opposite_pinned_free_clamped;
-
- else if (boundary_case_num==int(TestSoln::manufactured))
-  TestSoln::boundary_case=TestSoln::manufactured;
-
+ if (boundary_case_num>=0 && boundary_case_num <=11)
+  {
+  // Cast int to enum
+  TestSoln::boundary_case=(TestSoln::Boundary_case)(boundary_case_num);
+  }
  else // Default to what is set in TestSoln
   { 
    oomph_info<<"Boundary case \""<<boundary_case_num<<"\" not recognised.\n";
@@ -1034,20 +1015,60 @@ int main(int argc, char **argv)
   return(0);
  }
 
+
  // Label for output
  DocInfo doc_info;
  
  // Output directory
  doc_info.set_directory(output_dir);
 
+ // If we are asked to validate
+ if(CommandLineArgs::command_line_flag_has_been_set("--validation"))
+ {
+  oomph_info << "Linear Kirchhoff Plate Bending (Tri Mesh) Validation\n"<<
+   "-------------------------------------------------------------------------\n";
+  // Test parameters
+  TestSoln::P_cos = 1.0;
+  element_area = 0.1;
+  TestSoln::Length_of_strip = 1.0;
+
+  // Use a 3rd order curved Bell element, we don't need to upgrade it.
+  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,3> > problem(element_area);
+  problem.max_newton_iterations()=1;
+
+  // We have defined 12 cases
+  const unsigned number_of_cases = 12;
+  for(unsigned icase=0; icase<number_of_cases;++icase)
+   {
+   // Cast boundary case
+   TestSoln::boundary_case=(TestSoln::Boundary_case)icase;
+   // Newton Solve
+   problem.newton_solve();
+ 
+   //Output solution
+   problem.doc_solution(doc_info);
+   
+   oomph_info << std::endl;
+   oomph_info << "---------------------------------------------" << std::endl;
+   oomph_info << "Doced with displacement Ux (" << TestSoln::Displacement_x/2 << ")" << std::endl;
+   oomph_info << " Pcos (" << TestSoln::P_cos << ")" << std::endl;
+   oomph_info << "Current dux (" << dux << ")" << std::endl;
+   oomph_info << "Poisson ratio (" << TestSoln::nu << ")" << std::endl;
+   oomph_info << "Case (" << TestSoln::boundary_case << ")" << std::endl;
+   oomph_info << "Solution number (" << doc_info.number()-1 << ")" << std::endl;
+   oomph_info << "---------------------------------------------" << std::endl;
+   oomph_info << std::endl;
+   }
+  // Terminate here
+  return(0);
+ }
+
  // Problem instance
  // Use a 3rd order curved Bell element, we don't need to upgrade it.
  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,3> > problem(element_area);
 
  problem.max_newton_iterations()=1;
- problem.set_dofs_to_exact_solution();
-//  problem.doc_solution(doc_info);
-//  exit(0);
+
  // Get some timings
  double tt_start = 0.0;
  if (Global_timings::Doc_comprehensive_timings)
