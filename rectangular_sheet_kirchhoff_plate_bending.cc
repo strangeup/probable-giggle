@@ -126,6 +126,7 @@ namespace TestSoln
  double exact_soln_max_terms_in_expansion=50;
 
  bool High_resolution = false;
+ bool Use_unit_mesh = false;
  
   /// Perturbation
  double P_cos=1.0;
@@ -328,10 +329,24 @@ public:
  /// Destructor
  ~UnstructuredFvKProblem()
   {
+   // Clean up boundary data
+   delete Outer_boundary_pt;
+   Outer_boundary_pt = 0;
+   delete Boundary0_pt;
+   Boundary0_pt = 0;
+   delete Boundary1_pt;
+   Boundary1_pt = 0;
+   delete Boundary2_pt;
+   Boundary2_pt = 0;
+   delete Boundary3_pt;
+   Boundary3_pt = 0;
+   // Delete the parameters
+   delete Triangle_mesh_parameters_pt;
+   // Close the trace
    Trace_file.close();  
+   // Delete the Surface and Bulk mesh
    delete this->Surface_mesh_pt;
    delete Bulk_mesh_pt;
-   delete this->eigen_solver_pt();
   };
  
   /// Update after solve (empty)
@@ -441,11 +456,12 @@ private:
    oomph_info << "Number of equations: "
               << this->assign_eqn_numbers() << '\n';  
    
-   this->eigen_solver_pt() = new LAPACK_QZ; 
-   
    // Document the number of elements in the mesh
    oomph_info << "Number of elements: " << Bulk_mesh_pt->nelement() << std::endl;
    }
+
+  /// Create the mesh
+  void set_up_rectangular_mesh(const double& element_area);
   
   /// Pointers to specific mesh
   TriangleMesh<ELEMENT>* Bulk_mesh_pt;
@@ -457,19 +473,22 @@ protected:
     
   // The initial (and maximum) element area
   double Element_area;
+  // The mesh parameters
+  TriangleMeshParameters* Triangle_mesh_parameters_pt;
+  TriangleMeshClosedCurve* Outer_boundary_pt;
+  TriangleMeshPolyLine* Boundary0_pt;
+  TriangleMeshPolyLine* Boundary1_pt;
+  TriangleMeshPolyLine* Boundary2_pt;
+  TriangleMeshPolyLine* Boundary3_pt;
  
 }; // end_of_problem_class
 
-
-template<class ELEMENT>
-UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
-  :
-Element_area(element_area)
+/// Set-up the rectangular mesh for the problem
+template <class ELEMENT>
+void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
+ const double& element_area) 
 {
- // Set the maximum residuals for Newton iterations
- Problem::Max_residuals = 1000;
- 
- // Setup mesh
+ // Local copies
  const double length = TestSoln::Length_of_strip/2.0;
  const double width = 1.0/2.0;
   
@@ -495,7 +514,7 @@ Element_area(element_area)
  vertices[2][1] = length;
  
  unsigned boundary_id = 0;
- TriangleMeshPolyLine *boundary0_pt =
+ Boundary0_pt =
    new TriangleMeshPolyLine(vertices, boundary_id);
  
  // ---------------------------------------------------------------------
@@ -517,7 +536,7 @@ Element_area(element_area)
  vertices[2][1] = length;
  
  boundary_id = 1;
- TriangleMeshPolyLine *boundary1_pt =
+ Boundary1_pt =
    new TriangleMeshPolyLine(vertices, boundary_id);
  
  // ---------------------------------------------------------------------
@@ -539,7 +558,7 @@ Element_area(element_area)
  vertices[2][1] = -length;
  
  boundary_id = 2;
- TriangleMeshPolyLine *boundary2_pt =
+ Boundary2_pt =
    new TriangleMeshPolyLine(vertices, boundary_id);
  
  // ---------------------------------------------------------------------
@@ -561,7 +580,7 @@ Element_area(element_area)
  vertices[2][1] = -length;
  
  boundary_id = 3;
- TriangleMeshPolyLine *boundary3_pt =
+ Boundary3_pt =
    new TriangleMeshPolyLine(vertices, boundary_id);
  
  // ---------------------------------------------------------------------
@@ -570,26 +589,49 @@ Element_area(element_area)
  // >> Setting up the domain with PolyLines
  Vector<TriangleMeshCurveSection*> outer_boundary_polyline_pt(4);
  
- outer_boundary_polyline_pt[0] = boundary0_pt;
- outer_boundary_polyline_pt[1] = boundary1_pt;
- outer_boundary_polyline_pt[2] = boundary2_pt;
- outer_boundary_polyline_pt[3] = boundary3_pt;
+ outer_boundary_polyline_pt[0] = Boundary0_pt;
+ outer_boundary_polyline_pt[1] = Boundary1_pt;
+ outer_boundary_polyline_pt[2] = Boundary2_pt;
+ outer_boundary_polyline_pt[3] = Boundary3_pt;
  
  // The outer polygon
- TriangleMeshClosedCurve* outer_boundary_pt = 
+ Outer_boundary_pt = 
   new TriangleMeshClosedCurve(outer_boundary_polyline_pt);
  
  // --------------------------------------------------------------------
  //Create the mesh
  //---------------
- 
  //Create mesh parameters object
- TriangleMeshParameters triangle_mesh_parameters(outer_boundary_pt);
+ Triangle_mesh_parameters_pt = new TriangleMeshParameters(Outer_boundary_pt);
 
  // Set the element area into the mesh arguments
- triangle_mesh_parameters.element_area() = element_area;
- 
- Bulk_mesh_pt = new TriangleMesh<ELEMENT>(triangle_mesh_parameters);
+ Triangle_mesh_parameters_pt->element_area() = element_area;
+}
+
+template<class ELEMENT>
+UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
+  : Element_area(element_area), Triangle_mesh_parameters_pt(0), Outer_boundary_pt(0), 
+    Boundary0_pt(0), Boundary1_pt(0), Boundary2_pt(0), Boundary3_pt(0)
+{
+ // Set the maximum residuals for Newton iterations
+ Problem::Max_residuals = 1000;
+ // Define the mesh file names
+ const std::string node_file_name = "unit_square.1.node";
+ const std::string element_file_name = "unit_square.1.ele";
+ const std::string poly_file_name = "unit_square.1.poly";
+
+ // Setup mesh
+ if(TestSoln::Use_unit_mesh)
+  {
+   // Build mesh and store pointer in Problem
+   Bulk_mesh_pt = new TriangleMesh<ELEMENT>(node_file_name,element_file_name,poly_file_name);
+  }
+ else 
+  {
+   // Set up the mesh
+   set_up_rectangular_mesh(element_area);
+   Bulk_mesh_pt = new TriangleMesh<ELEMENT>(*Triangle_mesh_parameters_pt);
+  }
   
  // Store number of Poisson bulk elements (= number of elements so far).
  Bulk_mesh_pt->nelement();
@@ -603,8 +645,11 @@ Element_area(element_area)
  add_sub_mesh(Bulk_mesh_pt);
  add_sub_mesh(Surface_mesh_pt);
 
- // Build the Problem's global mesh from its various sub-meshes
- build_global_mesh();
+  // Build the Problem's global mesh from its various sub-meshes
+  build_global_mesh();
+
+  oomph_info<<"Number Elements "<<Bulk_mesh_pt->nelement()<<std::endl;
+  oomph_info<<"Number Nodes "<<Bulk_mesh_pt->nnode()<<std::endl;
  
  // Open the trace and start recording 
  char filename[100];
@@ -618,17 +663,6 @@ Element_area(element_area)
  assign_equation_numbers();
  
 
- // Clean up
- delete outer_boundary_pt;
- outer_boundary_pt = 0;
- delete boundary0_pt;
- boundary0_pt = 0;
- delete boundary1_pt;
- boundary1_pt = 0;
- delete boundary2_pt;
- boundary2_pt = 0;
- delete boundary3_pt;
- boundary3_pt = 0;
 }
 
 //==start_of_complete======================================================
@@ -793,7 +827,8 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
   this->Bulk_mesh_pt->output(some_file,npts);
   some_file.close();
 
-  if (TestSoln::High_resolution)
+  // Output with very high resolution
+  if(TestSoln::High_resolution)
    {npts = 25;}
   else
    {npts = 5;}
@@ -922,6 +957,9 @@ int main(int argc, char **argv)
  // Output solutions in high res
  CommandLineArgs::specify_command_line_flag("--high_resolution");
 
+ // Specify use of the unit mesh
+ CommandLineArgs::specify_command_line_flag("--use_unit_mesh");
+
  // Output solutions in high res
  CommandLineArgs::specify_command_line_flag("--validation");
 
@@ -965,6 +1003,9 @@ int main(int argc, char **argv)
  // Output in high resolution
  TestSoln::High_resolution = CommandLineArgs::
    command_line_flag_has_been_set("--high_resolution");
+ // Use the unit mesh
+ TestSoln::Use_unit_mesh = CommandLineArgs::
+   command_line_flag_has_been_set("--use_unit_mesh");
  // -------------------------------------------------------------------------
  // Flag for bad user input
  bool invalid_input=false;
