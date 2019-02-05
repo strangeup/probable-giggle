@@ -31,25 +31,20 @@
 //Generic routines
 #include "generic.h" 
 
-// The equations
-#include "kirchhoff_plate_bending.h"
+// Include the library elements
+#include "C1_linear_plate_bending.h"
+
 // The mesh
 #include "meshes/triangle_mesh.h"
+
+// Analytic Solutions for linear plate bending problems
+#include "kirchhoff_plate_bending_analytic_solutions.h"
 
 using namespace std;
 using namespace oomph;
 using MathematicalConstants::Pi;
 
-// Namespace extension
-namespace oomph
-{
-namespace KpbAnalyticSolns 
-{
- void circle_pinned_symmetrically(const Vector<double>& polar_vector, const
-unsigned& k, const double& nu, Vector<double>& w,  const unsigned& nterms);
-}
-}
-
+// Global variables in this driver code
 namespace TestSoln
 {
 //Shape of the domain
@@ -60,39 +55,10 @@ double eta = 0;
 double p_mag = 1; 
 double nu = 0.3;
 
-// Parametric function for boundary part 0
-void parametric_edge_0(const double& s, Vector<double>& x)
- { x[0] =-std::sin(s);  x[1] = std::cos(s);}
-// Derivative of parametric function
-void d_parametric_edge_0(const double& s, Vector<double>& dx)
- { dx[0] =-std::cos(s);  dx[1] =-std::sin(s);}
-// Derivative of parametric function
-void d2_parametric_edge_0(const double& s, Vector<double>& dx)
- { dx[0] = std::sin(s);  dx[1] =-std::cos(s);}
-
-// Parametric function for boundary part 1
-void parametric_edge_1(const double& s, Vector<double>& x)
-{ x[0] = std::sin(s);  x[1] =-std::cos(s);}
-// Derivative of parametric function
-void  d_parametric_edge_1(const double& s, Vector<double>& dx)
-{ dx[0] = std::cos(s);  dx[1] = std::sin(s);};
-// Derivative of parametric function
-void  d2_parametric_edge_1(const double& s, Vector<double>& dx)
-{ dx[0] =-std::sin(s);  dx[1] = std::cos(s);};
-
-// Get s from x
-double get_s_0(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the upper semi circular arc
- return atan2(-x[0],x[1]);
-}
-
-// Get s from x
-double get_s_1(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the lower semi circular arc
-return atan2(x[0],-x[1]);
-}
+/*                     PARAMETRIC BOUNDARY DEFINITIONS                        */
+// Here we create the geom objects for the Parametric Boundary Definition 
+CurvilineCircleTop parametric_curve_top;
+CurvilineCircleBottom parametric_curve_bottom;
 
 // Assigns the value of pressure depending on the position (x,y)
 void get_pressure(const Vector<double>& x, double& pressure)
@@ -109,11 +75,6 @@ void get_normal_and_tangent(const Vector<double>& x, Vector<double>& n,
  n[1] = x[1]/sqrt(x[0]*x[0]+x[1]*x[1]);
 
  // The derivatives of the x and y components
- //  Dn(0,0) = 1.0/sqrt(x[0]*x[0]+x[1]*x[1])-x[0]*x[0]*pow(x[0]*x[0]+x[1]*x[1],-1.5);
- //  Dn(0,1) =-x[0]*x[1]*pow(x[0]*x[0]+x[1]*x[1],-1.5);
- //  Dn(1,0) =-x[0]*x[1]*pow(x[0]*x[0]+x[1]*x[1],-1.5);
- //  Dn(1,1) = 1.0/sqrt(x[0]*x[0]+x[1]*x[1])-x[1]*x[1]*pow(x[0]*x[0]+x[1]*x[1],-1.5);
-
  Dn(0,0) = x[1]*x[1] * pow(x[0]*x[0]+x[1]*x[1],-1.5);
  Dn(1,0) =-x[1]*x[0] * pow(x[0]*x[0]+x[1]*x[1],-1.5);
  Dn(0,1) =-x[0]*x[1] * pow(x[0]*x[0]+x[1]*x[1],-1.5);
@@ -130,45 +91,21 @@ void get_normal_and_tangent(const Vector<double>& x, Vector<double>& n,
 }
 
 //Exact solution for constant pressure, circular domain and resting boundary conditions
-void get_exact_w(const Vector<double>& xi, Vector<double>& w)
+void get_exact_radial_w(const Vector<double>& xi, Vector<double>& w)
 {
 // //solution (r^4-br^2+c)/64 for w=0 and w'=0 or mrt=0
 Vector<double> polar_coord(2);
 polar_coord[0] = sqrt(xi[0]*xi[0]+xi[1]*xi[1]);
 polar_coord[1] = atan2(xi[0],xi[1])-Pi/6.;
-
-// // Jacobian d ri / dxj
-// const double x=xi[0],y=xi[1];
-// DenseMatrix<double> jac(2,2,0.0);
-// 
-// // FORGET THIS.
-// // At centre jacobian is a mess
-// if(x!=0 && y!=0)
-//  {
-//  jac(0,0) = x / polar_coord[0];
-//  jac(0,1) = y / polar_coord[0];
-//  jac(1,0) = -y / (x*x + y*y);
-//  jac(1,1) =  x / (x*x + y*y);
-// }
-// else
-//  {
-//  jac(0,0) = x / polar_coord[0];
-//  jac(0,1) = y / polar_coord[0];
-//  jac(1,0) = -y / (x*x + y*y);
-//  jac(1,1) =  x / (x*x + y*y);
-//  }
 // Get analytic solution
 Vector<double> wpolar(6,0.0);
-KpbAnalyticSolns::circle_pinned_symmetrically(polar_coord, 3, nu, wpolar, 40);
-
+KirchhoffPlateBendingAnalyticSolutions::circle_pinned_symmetrically(polar_coord, 3, nu, wpolar, 40);
 w[0] = wpolar[0];
 w[1] = wpolar[1];
 w[2] = wpolar[2];
 w[3] = wpolar[3];
 w[4] = wpolar[4];
 w[5] = wpolar[5];
-// w[1] = wpolar[0]*jac(1,0) + wpolar[1]*jac(1,0);
-// w[2] = wpolar[0]*jac(1,1) + wpolar[1]*jac(1,1);
 
 }
 }
@@ -223,7 +160,6 @@ DocInfo Doc_info;
 
 private:
 
-
 /// Helper function to apply boundary conditions
 void apply_boundary_conditions();
 
@@ -248,17 +184,6 @@ enum
 
 double Element_area;
 
-// The extra members required for flux type boundary conditions.
-/// \short Number of "bulk" elements (We're attaching flux elements
-/// to bulk mesh --> only the first Nkirchhoff_elements elements in
-/// the mesh are bulk elements!)
-// unsigned Nkirchhoff_elements;
-
-/// \short Create bending moment elements on the b-th boundary of the
-/// problems mesh 
-void create_traction_elements(const unsigned &b, Mesh* const & bulk_mesh_py,
-                            Mesh* const &surface_mesh_pt);
-
 void upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const & 
  bulk_mesh_pt);
 
@@ -277,7 +202,7 @@ for (unsigned inod=0;inod<num_int_nod;inod++)
   {
    // Get the central value
    Vector<double> w_exact(6);
-   TestSoln::get_exact_w(Vector<double>(2,0.0), w_exact);
+   TestSoln::get_exact_radial_w(Vector<double>(2,0.0), w_exact);
 
    // The central value
    oomph_info<<"x = ("<<nod_pt->x(0)<<" "<<nod_pt->x(1)<<") \n";
@@ -539,53 +464,50 @@ for (unsigned inod=0;inod<num_nod;inod++)
 
 } // end set bc
 
+/// A function that upgrades straight sided elements to be curved. This involves
+// Setting up the parametric boundary, F(s) and the first derivative F'(s)
+// We also need to set the edge number of the upgraded element and the positions
+// of the nodes j and k (defined below) and set which edge (k) is to be exterior
+/*            @ k                                                             */
+/*           /(                                                               */
+/*          /. \                                                              */
+/*         /._._)                                                             */
+/*      i @     @ j                                                           */
+// For RESTING or FREE boundaries we need to have a C2 CONTINUOUS boundary
+// representation. That is we need to have a continuous 2nd derivative defined 
+// too. This is well discussed in by [Zenisek 1981] (Aplikace matematiky , 
+// Vol. 26 (1981), No. 2, 121--141). This results in the necessity for F''(s) 
+// as well.
 template <class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::
-create_traction_elements(const unsigned &b, Mesh* const &bulk_mesh_pt, 
-                             Mesh* const &surface_mesh_pt)
-{
-}// end create traction elements
-
-template <class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::
+void UnstructuredFvKProblem<ELEMENT >::
 upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt) 
 {
  // How many bulk elements adjacent to boundary b
  unsigned n_element = bulk_mesh_pt-> nboundary_element(b);
- 
  // These depend on the boundary we are on
- void (*parametric_edge_fct_pt)(const double& s, Vector<double>& x);
- void (*d_parametric_edge_fct_pt)(const double& s, Vector<double>& dx);
- void (*d2_parametric_edge_fct_pt)(const double& s, Vector<double>& dx);
- double (*get_arc_position)(const Vector<double>& s);
- 
-// Define the functions for each part of the boundary
+ CurvilineGeomObject* parametric_curve_pt; 
+
+ // Define the functions for each part of the boundary
  switch (b)
   {
-   // Upper boundary
-   case 0: case 1: case 2: 
-    parametric_edge_fct_pt = &TestSoln::parametric_edge_0;
-    d_parametric_edge_fct_pt = &TestSoln::d_parametric_edge_0;
-    d2_parametric_edge_fct_pt = &TestSoln::d2_parametric_edge_0;
-    get_arc_position = &TestSoln::get_s_0;
-   break;
+  // Upper boundary
+  case 0: case 1: case 2:
+   parametric_curve_pt = &TestSoln::parametric_curve_top;
+  break;
 
-   // Lower boundary
-   case 3: case 4: case 5:
-    parametric_edge_fct_pt = &TestSoln::parametric_edge_1;
-    d_parametric_edge_fct_pt = &TestSoln::d_parametric_edge_1;
-    d2_parametric_edge_fct_pt = &TestSoln::d2_parametric_edge_1;
-    get_arc_position = &TestSoln::get_s_1;
-   break;
+  // Lower boundary
+  case 3: case 4: case 5:
+   parametric_curve_pt = &TestSoln::parametric_curve_bottom;
+  break;
 
-   default:
-    throw OomphLibError(
-     "I have encountered a boundary number that I wasn't expecting. This is very\
- peculiar.",
-     "UnstructuredFvKProblem::upgrade_edge_elements_to_curve(...)",
-     OOMPH_EXCEPTION_LOCATION);
-   break;
-  }
+  default:
+   throw OomphLibError(
+    "I have encountered a boundary number that I wasn't expecting. Please fill \
+me in if you want additional curved boundaries..",
+    "UnstructuredFvKProblem::upgrade_edge_elements_to_curve(...)",
+    OOMPH_EXCEPTION_LOCATION);
+  break;
+ }
  
  // Loop over the bulk elements adjacent to boundary b
  for(unsigned e=0; e<n_element; e++)
@@ -594,12 +516,12 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
    ELEMENT* bulk_el_pt = dynamic_cast<ELEMENT*>(
     bulk_mesh_pt->boundary_element_pt(b,e));
    
-   // Loop over nodes
-   unsigned nnode=bulk_el_pt->nnode();
+   // Loop over (vertex) nodes
+   unsigned nnode=3; //This should always be = 3 for triangles
    unsigned index_of_interior_node=3;
 
-   // The edge that is curved
-   MyC1CurvedElements::TestElement<5>::Edge edge;
+   // Enum for the curved edge
+   MyC1CurvedElements::Edge edge(MyC1CurvedElements::none);
 
    // Vertices positions
    Vector<Vector<double> > xn(3,Vector<double>(2,0.0));
@@ -613,7 +535,16 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
      Node* nod_pt = bulk_el_pt->node_pt(n);
      verts[n][0]=nod_pt->x(0);
      verts[n][1]=nod_pt->x(1);
-     if(nod_pt->is_on_boundary())
+
+     // Check if it is on the outer boundaries
+     bool is_on_boundary = false;
+     const unsigned n_outer_boundaries=6;
+     for(unsigned i=0; i<n_outer_boundaries;++i)
+       {
+        // On a boundary if on any boundary
+        is_on_boundary = is_on_boundary || nod_pt->is_on_boundary(i);
+       }
+     if(is_on_boundary) 
       {
        xn[n][0]=nod_pt->x(0);
        xn[n][1]=nod_pt->x(1);
@@ -621,25 +552,25 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
      // The edge is denoted by the index of the  opposite (interior) node
      else {index_of_interior_node = n;}
     }
-   // Initialise s_ubar s_obar
+   // Initialise s_ubar s_obar (start and end respectively)
    double s_ubar, s_obar;
 
    // s at the next (cyclic) node after interior
-   s_ubar = (*get_arc_position)(xn[(index_of_interior_node+1) % 3]);
+   s_ubar = parametric_curve_pt->get_zeta(xn[(index_of_interior_node+1) % 3]);
    // s at the previous (cyclic) node before interior
-   s_obar = (*get_arc_position)(xn[(index_of_interior_node+2) % 3]);
+   s_obar = parametric_curve_pt->get_zeta(xn[(index_of_interior_node+2) % 3]);
 
    // Assign edge case
    switch(index_of_interior_node)
     {
-     case 0: edge= MyC1CurvedElements::TestElement<5>::zero; 
+     case 0: edge= MyC1CurvedElements::zero; 
       break;
-     case 1: edge= MyC1CurvedElements::TestElement<5>::one; 
+     case 1: edge= MyC1CurvedElements::one; 
       break;
-     case 2: edge= MyC1CurvedElements::TestElement<5>::two; 
+     case 2: edge= MyC1CurvedElements::two; 
       break;
      // Should break it here HERE
-     default: edge= MyC1CurvedElements::TestElement<5>::none; 
+     default: edge= MyC1CurvedElements::none; 
       throw OomphLibError(
        "The edge number has been set to a value greater than two: either we have\
  quadrilateral elements or more likely the index_of_interior_node was never set\
@@ -648,24 +579,23 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
        OOMPH_EXCEPTION_LOCATION);
       break;
      }
-   if (s_ubar>s_obar)
-    {std::cout<<s_ubar<<" "<<s_obar<<"\n";}
    // Check for inverted elements HERE
+   if (s_ubar>s_obar)
+    {
+     oomph_info <<"Apparent clockwise direction of parametric coordinate."
+                <<"This will probably result in an inverted element."
+                <<"s_start="<<s_ubar<<"; s_end ="<<s_obar<<std::endl;
+     throw OomphLibError(
+       "The Edge coordinate appears to be decreasing from s_start to s_end. \
+Either the parametric boundary is defined to be clockwise (a no-no) or \
+the mesh has returned an inverted element (less likely)",
+       "UnstructuredFvKProblem::upgrade_edge_elements_to_curve(...)",
+       OOMPH_EXCEPTION_LOCATION);
+    }
 
    // Upgrade it
-    bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
-     *parametric_edge_fct_pt,*d_parametric_edge_fct_pt,
-     *d2_parametric_edge_fct_pt);
-    
-   // Get vertices for debugging
-   Vector<Vector<double> > lverts(3,Vector<double>(2,0.0));
-   lverts[0][0]=1.0;
-   lverts[1][1]=1.0;
-   Vector<Vector<double> > fkverts(3,Vector<double>(2,0.0));
-   bulk_el_pt->get_coordinate_x(lverts[0],fkverts[0]);
-   bulk_el_pt->get_coordinate_x(lverts[1],fkverts[1]);
-   bulk_el_pt->get_coordinate_x(lverts[2],fkverts[2]);
-
+   bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
+    parametric_curve_pt);     
   }
 }// end upgrade elements
 
@@ -758,7 +688,7 @@ some_file.close();
 //  Output exact solution
 sprintf(filename,"%s/exact_interpolated_soln%i-%f.dat","RESLT",Doc_info.number(),Element_area);
 some_file.open(filename);
-Bulk_mesh_pt->output_fct(some_file,npts,TestSoln::get_exact_w); 
+Bulk_mesh_pt->output_fct(some_file,npts,TestSoln::get_exact_radial_w); 
 some_file << "TEXT X = 22, Y = 92, CS=FRAME T = \"" 
        << comment << "\"\n";
 some_file.close();
@@ -789,41 +719,59 @@ for (unsigned r = 0; r < n_region; r++)
 }
 }
 
-// // Doc error and return of the square of the L2 error
-// //---------------------------------------------------
-// //double error,norm,dummy_error,zero_norm;
+ // Doc error and return of the square of the L2 error
+ //---------------------------------------------------
+ //double error,norm,dummy_error,zero_norm;
   double dummy_error,zero_norm;
  sprintf(filename,"RESLT/error%i-%f.dat",Doc_info.number(),Element_area);
  some_file.open(filename);
  
- Bulk_mesh_pt->compute_error(some_file,TestSoln::get_exact_w,
+ Bulk_mesh_pt->compute_error(some_file,TestSoln::get_exact_radial_w,
                         dummy_error,zero_norm);
  some_file.close();
+
+ // HERE need to sever the link or fix the BellElement class - as this class
+ // BREAKS locate zeta by intoducing unitialized value through n_position_type
+ // which is  =  6 for use in interpolation
+ // Find the solution at x = y = 0
+ MeshAsGeomObject* Mesh_as_geom_obj_pt=
+  new MeshAsGeomObject(Bulk_mesh_pt);
+ Vector<double> s(2);
+ GeomObject* geom_obj_pt=0;
+ Vector<double> r(2,0.0);
+ Mesh_as_geom_obj_pt->locate_zeta(r,geom_obj_pt,s);
+
+ // The member function does not exist in this element
+ // it is instead called interpolated_u_biharmonic and returns a vector of length
+ // 6 - this may need tidying up 
+ Vector<double> u_0(12,0.0);
+ dynamic_cast<ELEMENT*>(geom_obj_pt)->interpolated_u_biharmonic(s,u_0);
+ oomph_info << "w in the middle: " << u_0[0] << std::endl;
  
  // Doc L2 error and norm of solution
  oomph_info << "Norm of computed solution: " << sqrt(dummy_error)<< std::endl;
  
- Trace_file << TestSoln::p_mag << " " << "\n ";
+ Trace_file << TestSoln::p_mag << " " << u_0[0]<<"\n ";
 
-// Doc error and return of the square of the L2 error
-//---------------------------------------------------
-sprintf(filename,"RESLT/L2-norm%i-%f.dat",
-        Doc_info.number(),
-        Element_area);
-some_file.open(filename);
-
-some_file<<"### L2 Norm\n";
-some_file<<"##  Format: err^2 norm^2 log(err/norm) \n";
-// Print error in prescribed format
-some_file<< dummy_error <<" "<< zero_norm <<" ";
-
-// Only divide by norm if its nonzero
-some_file<<0.5*(log10(fabs(dummy_error))-log10(zero_norm))<<"\n";
-some_file.close();
-
-// Increment the doc_info number
-Doc_info.number()++;
-
+ // Doc error and return of the square of the L2 error
+ //---------------------------------------------------
+ sprintf(filename,"RESLT/L2-norm%i-%f.dat",
+         Doc_info.number(),
+         Element_area);
+ some_file.open(filename);
+ 
+ some_file<<"### L2 Norm\n";
+ some_file<<"##  Format: err^2 norm^2 log(err/norm) \n";
+ // Print error in prescribed format
+ some_file<< dummy_error <<" "<< zero_norm <<" ";
+ 
+ // Only divide by norm if its nonzero
+ some_file<<0.5*(log10(fabs(dummy_error))-log10(zero_norm))<<"\n";
+ some_file.close();
+ 
+ // Increment the doc_info number
+ Doc_info.number()++;
+ 
 } // end of doc
 
 //============start_of_delete_flux_elements==============================
