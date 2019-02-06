@@ -203,13 +203,21 @@ namespace KirchhoffPlateBendingAnalyticSolutions
  }
 
 // A circular sheet symmetrically pinned at k points subject to uniform pressure
-// This was communicated in Bassali  Proc. Cambridge Phil. Soc. vol 53 - though
-// there is an apparent transcription error in the final result for uniformly 
-// forced circular plate.
+// This was communicated in Bassali  Proc. Cambridge Phil. Soc. vol 53(2) p 525 
+// - though there is an apparent transcription error in the final result for 
+// uniformly forced circular plate.
 // Include the radial derivatives
  void circle_pinned_symmetrically(const Vector<double>& polar_vector, const
 unsigned& k, const double& nu, Vector<double>& w,  const unsigned& nterms=10)
  {
+  // Throw for k<2
+  if(k<2)
+   {
+   throw OomphLibError(
+    "Pinned at k-points solution is valid only for k>1. Please choose a k>1.",
+    OOMPH_CURRENT_FUNCTION, OOMPH_EXCEPTION_LOCATION);
+   }
+   
   // The Polar Coordinates
   const double rho = polar_vector[0];
   const double theta = polar_vector[1];
@@ -224,7 +232,7 @@ unsigned& k, const double& nu, Vector<double>& w,  const unsigned& nterms=10)
   w[5] = 0.0;;
   Vector<double> wcorr(6,0.0);
   
-  // Now loop over terms
+  // Now loop over the number of terms
   for(unsigned i=1;i<=nterms;++i)
    {
    // Now define the actual index (multiples of k)
@@ -233,24 +241,39 @@ unsigned& k, const double& nu, Vector<double>& w,  const unsigned& nterms=10)
    wcorr[0] += ((n+n*beta+1.)/(n*n-1.) + beta/2.*((n*rho*rho)/(n+1.) - (n+2./beta)
         /(n-1.))*std::pow(rho,n)*std::cos(n*theta))/(n*n);
 
+   // rho derivative 
+   // Lowest k=2, then d rho^n / d rho = d rho ^2 / d rho = rho
    wcorr[1] += (beta/2.*(((n+2)*rho*rho)/(n+1.) - (n+2./beta)
         /(n-1.))*std::pow(rho,n-1)*std::cos(n*theta))/(n);
 
+   // theta derivative 
    wcorr[2] -= (beta/2.*((n*rho*rho)/(n+1.) - (n+2./beta)
         /(n-1.))*std::pow(rho,n)*std::sin(n*theta))/(n*n);
  
-   if(n>1)
+   // second rho derivative - will cause arithmetic exception at rho=0 n=2
+   if(n>2)
+    {
     wcorr[3] += (beta/2.*(((n+2)*rho*rho) - (n-1)*(n+2./beta)
          /(n-1.))*std::pow(rho,n-2)*std::cos(n*theta))/n;
+    }
+   // For n=2 the second derivative should give a constant
    else
-    wcorr[3] += (beta/2.*(((n+2))/(n-1.))*std::pow(rho,n)*std::cos(n*theta))/n;
+    {
+    // wcorr[3] += (beta/2.*(((n+2))/(n-1.))*std::pow(rho,n)*std::cos(n*theta))/n;
+    wcorr[3] += (beta/2.*(((n+2)*rho*rho) - (n-1)*(n+2./beta)
+         /(n-1.))*std::cos(n*theta))/n;
+    }
 
+   // Rho theta derivative
    wcorr[4] -= (beta/2.*(((n+2)*rho*rho)/(n+1.) - (n+2./beta)
         /(n-1.))*std::pow(rho,n-1)*std::sin(n*theta));
 
+   // theta theta derivative
    wcorr[5] -= (beta/2.*((n*rho*rho)/(n+1.) - (n+2./beta)
         /(n-1.))*std::pow(rho,n)*std::cos(n*theta));
    }
+
+   // Construct the final solution
    w[0] += wcorr[0] / (beta *(3. + nu));
    w[1] += wcorr[1] / (beta *(3. + nu));
    w[2] += wcorr[2] / (beta *(3. + nu));

@@ -96,10 +96,14 @@ void get_exact_radial_w(const Vector<double>& xi, Vector<double>& w)
 // //solution (r^4-br^2+c)/64 for w=0 and w'=0 or mrt=0
 Vector<double> polar_coord(2);
 polar_coord[0] = sqrt(xi[0]*xi[0]+xi[1]*xi[1]);
+// Rotate the solution by -Pi/6
 polar_coord[1] = atan2(xi[0],xi[1])-Pi/6.;
 // Get analytic solution
 Vector<double> wpolar(6,0.0);
-KirchhoffPlateBendingAnalyticSolutions::circle_pinned_symmetrically(polar_coord, 3, nu, wpolar, 40);
+// Compute the solution up to fifteenth term (worry about round-off / underflow
+// here - but the solution is pap so we need a few terms...)
+const unsigned nterms = 15 , npins = 3;
+KirchhoffPlateBendingAnalyticSolutions::circle_pinned_symmetrically(polar_coord, npins, nu, wpolar, nterms);
 w[0] = wpolar[0];
 w[1] = wpolar[1];
 w[2] = wpolar[2];
@@ -108,6 +112,9 @@ w[4] = wpolar[4];
 w[5] = wpolar[5];
 
 }
+
+// Output in High resolution
+bool High_resolution =false ;
 }
 
 ///////////////////////////////////////////////////////////
@@ -130,6 +137,8 @@ UnstructuredFvKProblem(double element_area = 0.1);
 /// Destructor
 ~UnstructuredFvKProblem()
 {
+ delete (Surface_mesh_pt);
+ delete (Bulk_mesh_pt);
 };
 
 /// Update after solve (empty)
@@ -138,10 +147,9 @@ void actions_after_newton_solve()
 }
 
 /// Update the problem specs before solve: Re-apply boundary conditions
-/// Empty as the boundary conditions stay fixed
 void actions_before_newton_solve()
 {
-apply_boundary_conditions();
+ complete_problem_setup();
 }
 
 /// Doc the solution
@@ -173,53 +181,72 @@ ofstream Trace_file;
 // Keep track of boundary ids
 enum
 {
+ // 0 to Pi
  Outer_boundary0 = 0,
  Outer_boundary1 = 1,
  Outer_boundary2 = 2,
+ //Pi to 2Pi
  Outer_boundary3 = 3,
  Outer_boundary4 = 4,
  Outer_boundary5 = 5,
+ // Internal boundary to make location of central node possible
  Inner_boundary0 = 6,
 };
 
+/// Element area
 double Element_area;
 
+/// Central node pointer
+Node* Centre_node_pt;
+
+/// Helper to upgrade edge elements on specified boundary to be curved
 void upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const & 
  bulk_mesh_pt);
 
+/// Helper to rotate edge degrees of freedom
 void rotate_edge_degrees_of_freedom(Mesh* const &bulk_mesh_pt);
 
 public:
-void output_central_value()
+
+/// Get the central value of the deflection
+void get_deflection_at_centre(double& deflection)
 {
+// IF we have already found it
+if(Centre_node_pt!=0)
+{
+ deflection =  Centre_node_pt->raw_value(0);
+ return;
+}
+
 // Loop over nodes 
 unsigned num_int_nod=Bulk_mesh_pt->nboundary_node(Inner_boundary0);
 for (unsigned inod=0;inod<num_int_nod;inod++)
 {
  // Get node point
  Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(Inner_boundary0,inod);
+ // IF it is at the centre
  if(nod_pt->x(0)==0.0 && nod_pt->x(1)==0.0)
   {
    // Get the central value
    Vector<double> w_exact(6);
    TestSoln::get_exact_radial_w(Vector<double>(2,0.0), w_exact);
+   Centre_node_pt = nod_pt;
 
-   // The central value
-   oomph_info<<"x = ("<<nod_pt->x(0)<<" "<<nod_pt->x(1)<<") \n";
-   oomph_info<<"The aprox central value is :" << nod_pt->raw_value(0)<<std::endl;
-   oomph_info<<"The exact central value is :" << w_exact[0] <<std::endl;
+   // Found the central value
+   oomph_info<<"Found central node in mesh at x=("
+            <<nod_pt->x(0)<<" "<<nod_pt->x(1)<<")\n";
+   oomph_info<<"The calculated central value is: " 
+             << nod_pt->raw_value(0)<<std::endl;
+   oomph_info<<"The exact central value is: " << w_exact[0] <<std::endl;
+   deflection = nod_pt->raw_value(0);
+   return;
   }
  }
+ // IF we get here we couldn't find it
+ oomph_info<<"Could not find central node in mesh.\n";
 } 
 
 private:
-/// \short Delete traction elements and wipe the surface mesh
-void delete_traction_elements(Mesh* const &surface_mesh_pt);
-
-/// \short Set pointer to prescribed-flux function for all elements
-/// in the surface mesh
-void set_prescribed_traction_pt();
-
 /// Pointer to "bulk" mesh
 TriangleMesh<ELEMENT>* Bulk_mesh_pt;
 
@@ -228,11 +255,10 @@ Mesh* Surface_mesh_pt;
 
 }; // end_of_problem_class
 
-
+/// Constructor
 template<class ELEMENT>
 UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
-:
-Element_area(element_area)
+: Element_area(element_area) , Centre_node_pt(0)
 {
 Vector<double> zeta(1);
 
@@ -245,8 +271,10 @@ Ellipse* outer_boundary_ellipse_pt = new Ellipse(A, B);
 
 TriangleMeshClosedCurve* outer_boundary_pt = 0;
 
+// Here we split the boundary into six parts, so that we have the three pins
+// accessible and we can use the existing parametric curves which define
+// the top and bottom of a circle
 Vector<TriangleMeshCurveSection*> outer_curvilinear_boundary_pt(6);
-
 //First bit
 double zeta_start = 0.0;
 double zeta_end = MathematicalConstants::Pi/3.;
@@ -361,6 +389,7 @@ upgrade_edge_elements_to_curve(4,Bulk_mesh_pt);
 upgrade_edge_elements_to_curve(5,Bulk_mesh_pt);
  
 // Rotate degrees of freedom
+// This is unecessary when we are only pinning single points
 // rotate_edge_degrees_of_freedom(Bulk_mesh_pt);
 
 // Store number of bulk elements
@@ -372,9 +401,24 @@ Trace_file.open(filename);
 
 oomph_info << "Number of equations: "
         << assign_eqn_numbers() << '\n';
+
+// Clean up memory
+delete outer_boundary_pt;
+outer_boundary_pt = 0;
+delete outer_boundary_ellipse_pt;
+outer_boundary_ellipse_pt = 0;
+const unsigned n_bounds = 6;
+// Loop over boundary_pt
+for(unsigned ibound = 0; ibound<n_bounds;++ibound)
+ {
+ delete outer_curvilinear_boundary_pt[ibound];
+ outer_curvilinear_boundary_pt[ibound] = 0;
+ }
+delete inner_open_boundaries_pt[0];
+inner_open_boundaries_pt[0] = 0;
+delete boundary2_pt;
+boundary2_pt = 0;
 }
-
-
 
 //==start_of_complete======================================================
 /// Set boundary condition exactly, and complete the build of 
@@ -383,37 +427,6 @@ oomph_info << "Number of equations: "
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
 {   
-const unsigned nbound = 6;
-// Set the boundary conditions for problem: All nodes are
-// free by default -- just pin the ones that have Dirichlet conditions
-// here. 
-// Just loop over outer boundary since inner boundary doesn't have boundary
-// conditions
-// We want to pin the two points that are on both boundaries (1,0) and (-1,0) 
-// Loop over boundaries
-for(unsigned ibound =0; ibound<nbound;ibound+=2)
-{
- // Now find the i+1 boundary
- unsigned jbound = (ibound + 1) % (nbound);
- std::cout<< ibound <<" "<<jbound <<"\n";
- unsigned num_int_nod=Bulk_mesh_pt->nboundary_node(ibound);
- for (unsigned inod=0;inod<num_int_nod;inod++)
- {
-  // Get node point
-  Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
-  // If the node is on the other internal boundary too
-  if( nod_pt->is_on_boundary(jbound))
-  {
-   oomph_info<<"Found boundary node that belongs to two boundaries.\n";
- 
-   oomph_info<<"x = ("<<nod_pt->x(0)<<" "<<nod_pt->x(1)<<") \n";
-   // Pin it - if it's on both boundaries
-   nod_pt->pin(0);
-   nod_pt->set_value(0,0.0);
-  }
- } //end loop over boundary nodes
-}
-
 // Complete the build of all elements so they are fully functional
 unsigned n_element = Bulk_mesh_pt->nelement();
 for(unsigned e=0;e<n_element;e++)
@@ -426,11 +439,6 @@ el_pt->pressure_fct_pt() = &TestSoln::get_pressure;
 el_pt->nu_pt() = &TestSoln::nu;
 }
 
-// Loop over flux elements to pass pointer to prescribed traction function
-
-/// Set pointer to prescribed traction function for traction elements
-//set_prescribed_traction_pt();
-
 // Re-apply Dirichlet boundary conditions (projection ignores
 // boundary conditions!)
 apply_boundary_conditions();
@@ -442,26 +450,36 @@ apply_boundary_conditions();
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
 {
-
-// Loop over all boundary nodes
-//Just loop over outer boundary conditions
-unsigned nbound = Outer_boundary1 + 1;
-
-for(unsigned ibound=0;ibound<nbound;ibound++)
+ oomph_info<<"Applying boundary conditions."<<std::endl;
+// Set the boundary conditions for problem: All nodes are
+// free by default -- just pin the ones that have Dirichlet conditions
+// here. 
+// Just loop over outer boundary since inner boundary doesn't have boundary
+// conditions
+// We want to pin the two points that are on both boundaries (1,0) and (-1,0) 
+// Loop over boundaries
+const unsigned nbound = 6;
+for(unsigned ibound =0; ibound<nbound;ibound+=2)
 {
-unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
-for (unsigned inod=0;inod<num_nod;inod++)
-{
- // Get node
- Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
- 
- // Extract nodal coordinates from node:
- Vector<double> x(2);
- x[0]=nod_pt->x(0);
- x[1]=nod_pt->x(1);
+ // Now find the i+1 boundary
+ unsigned jbound = (ibound + 1) % (nbound);
+ unsigned num_int_nod=Bulk_mesh_pt->nboundary_node(ibound);
+ for (unsigned inod=0;inod<num_int_nod;inod++)
+ {
+  // Get node point
+  Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
+  // If the node is on the other internal boundary too
+  if( nod_pt->is_on_boundary(jbound))
+  {
+   oomph_info<<"Found boundary node that belongs to two boundaries "
+             <<"at x = ("<<nod_pt->x(0)<<" "<<nod_pt->x(1)<<") \n";
+   oomph_info<<"Pinning it.\n";
+   // Pin it - if it's on both boundaries
+   nod_pt->pin(0);
+   nod_pt->set_value(0,0.0);
+  }
+ } //end loop over boundary nodes
 }
-} 
-
 } // end set bc
 
 /// A function that upgrades straight sided elements to be curved. This involves
@@ -517,7 +535,7 @@ me in if you want additional curved boundaries..",
     bulk_mesh_pt->boundary_element_pt(b,e));
    
    // Loop over (vertex) nodes
-   unsigned nnode=3; //This should always be = 3 for triangles
+   const unsigned nnode=3; //This should always be = 3 for triangles
    unsigned index_of_interior_node=3;
 
    // Enum for the curved edge
@@ -638,22 +656,13 @@ rotate_edge_degrees_of_freedom(Mesh* const &bulk_mesh_pt)
         }
       }
     // Output that we have found element HERE
-    std::cout<<"Element "<<e<<" has "<<bnode<< " nodes on the boundary.\n";
+    oomph_info<<"Element "<<e<<" has "<<bnode<< " nodes on the boundary.\n";
 
     el_pt->set_up_rotated_dofs(nbnode,bnode,&TestSoln::get_normal_and_tangent);
    // Now rotate the nodes
    }
  }
 }// end create traction elements
-
-//==start_of_set_prescribed_traction_pt===================================
-/// Set pointer to prescribed traction function for all elements in the 
-/// surface mesh
-//========================================================================
-template<class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::set_prescribed_traction_pt()
-{
-}// end of set prescribed flux pt
 
 //==start_of_doc_solution=================================================
 /// Doc the solution
@@ -676,7 +685,7 @@ some_file << "TEXT X = 22, Y = 92, CS=FRAME T = \""
 some_file.close();
 
 // Number of plot points
-npts = 6;
+npts = (TestSoln::High_resolution ? 25 : 6 );
 
 sprintf(filename,"RESLT/soln%i-%f.dat",Doc_info.number(),Element_area);
 some_file.open(filename);
@@ -719,6 +728,10 @@ for (unsigned r = 0; r < n_region; r++)
 }
 }
 
+// Output the centre deflection
+double centre_deflection(0);
+get_deflection_at_centre(centre_deflection);
+
  // Doc error and return of the square of the L2 error
  //---------------------------------------------------
  //double error,norm,dummy_error,zero_norm;
@@ -730,28 +743,9 @@ for (unsigned r = 0; r < n_region; r++)
                         dummy_error,zero_norm);
  some_file.close();
 
- // HERE need to sever the link or fix the BellElement class - as this class
- // BREAKS locate zeta by intoducing unitialized value through n_position_type
- // which is  =  6 for use in interpolation
- // Find the solution at x = y = 0
- MeshAsGeomObject* Mesh_as_geom_obj_pt=
-  new MeshAsGeomObject(Bulk_mesh_pt);
- Vector<double> s(2);
- GeomObject* geom_obj_pt=0;
- Vector<double> r(2,0.0);
- Mesh_as_geom_obj_pt->locate_zeta(r,geom_obj_pt,s);
-
- // The member function does not exist in this element
- // it is instead called interpolated_u_biharmonic and returns a vector of length
- // 6 - this may need tidying up 
- Vector<double> u_0(12,0.0);
- dynamic_cast<ELEMENT*>(geom_obj_pt)->interpolated_u_biharmonic(s,u_0);
- oomph_info << "w in the middle: " << u_0[0] << std::endl;
  
  // Doc L2 error and norm of solution
- oomph_info << "Norm of computed solution: " << sqrt(dummy_error)<< std::endl;
- 
- Trace_file << TestSoln::p_mag << " " << u_0[0]<<"\n ";
+ oomph_info << "L2 Norm of computed solution: " << sqrt(dummy_error/zero_norm)<< std::endl;
 
  // Doc error and return of the square of the L2 error
  //---------------------------------------------------
@@ -774,29 +768,6 @@ for (unsigned r = 0; r < n_region; r++)
  
 } // end of doc
 
-//============start_of_delete_flux_elements==============================
-/// Delete Poisson Flux Elements and wipe the surface mesh
-//=======================================================================
-template<class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>
-::delete_traction_elements(Mesh* const &surface_mesh_pt)
-{
-// How many surface elements are in the surface mesh
-unsigned n_element = surface_mesh_pt->nelement();
-
-// Loop over the surface elements
-for(unsigned e=0;e<n_element;e++)
-{
-// Kill surface element
-delete surface_mesh_pt->element_pt(e);
-}
-
-// Wipe the mesh
-surface_mesh_pt->flush_element_and_node_storage();
-
-} // end of delete_flux_elements
-
-
 //=======start_of_main========================================
 ///Driver code for demo of inline triangle mesh generation
 //============================================================
@@ -811,8 +782,11 @@ int main(int argc, char **argv)
  // Define possible command line arguments and parse the ones that
  // were actually specified
 
- // Validation?
+ // Validation
  CommandLineArgs::specify_command_line_flag("--validation");
+
+ // High Resolution
+ CommandLineArgs::specify_command_line_flag("--high_resolution");
 
  // Directory for solution
  string output_dir="RSLT";
@@ -835,28 +809,28 @@ int main(int argc, char **argv)
  // Parse command line
  CommandLineArgs::parse_and_assign(); 
 
+ // Output in high resolution
+ TestSoln::High_resolution = CommandLineArgs::
+   command_line_flag_has_been_set("--high_resolution");
+
  // Doc what has actually been specified on the command line
  CommandLineArgs::doc_specified_flags();
 
  // Problem instance
  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,5> >problem(element_area);
- //problem.self_test();
-// problem.newton_solver_tolerance()=1e12;
-// problem.max_residuals()=1e3;
-  oomph_info<<"Solving for p=" << TestSoln::p_mag<<"\n";
-  problem.newton_solve();
-  problem.output_central_value();
+ oomph_info<<"Solving for p=" << TestSoln::p_mag<<"\n";
+ problem.newton_solve();
 
-  // Document
-  problem.doc_solution();
-  oomph_info << std::endl;
-  oomph_info << "---------------------------------------------" << std::endl;
-  oomph_info << " Pcos (" << TestSoln::p_mag << ")" << std::endl;
-  oomph_info << "Current dp  (" << p_step << ")" << std::endl;
-  oomph_info << "Poisson ratio (" << TestSoln::nu << ")" << std::endl;
-  oomph_info << "Solution number (" <<problem.Doc_info.number()-1 << ")" << std::endl;
-  oomph_info << "---------------------------------------------" << std::endl;
-  oomph_info << std::endl;
+ // Document
+ problem.doc_solution();
+ oomph_info << std::endl;
+ oomph_info << "---------------------------------------------" << std::endl;
+ oomph_info << " Pcos (" << TestSoln::p_mag << ")" << std::endl;
+ oomph_info << "Current dp  (" << p_step << ")" << std::endl;
+ oomph_info << "Poisson ratio (" << TestSoln::nu << ")" << std::endl;
+ oomph_info << "Solution number (" <<problem.Doc_info.number()-1 << ")" << std::endl;
+ oomph_info << "---------------------------------------------" << std::endl;
+ oomph_info << std::endl;
 
 } //End of main
 
