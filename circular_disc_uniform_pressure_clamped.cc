@@ -31,11 +31,14 @@
 //Generic routines
 #include "generic.h" 
 
-// The equations
-#include "kirchhoff_plate_bending.h"
+// Include the library elements
+#include "C1_linear_plate_bending.h"
 
 // The mesh
 #include "meshes/triangle_mesh.h"
+
+// Analytic Solutions for linear plate bending problems
+#include "kirchhoff_plate_bending_analytic_solutions.h"
 
 using namespace std;
 using namespace oomph;
@@ -51,44 +54,27 @@ double eta = 0;
 double p_mag = 1; 
 double nu = 0.3;
 
-// Parametric function for boundary part 0
-void parametric_edge_0(const double& s, Vector<double>& x)
- { x[0] =-std::sin(s);  x[1] = std::cos(s);}
-// Derivative of parametric function
-void d_parametric_edge_0(const double& s, Vector<double>& dx)
- { dx[0] =-std::cos(s);  dx[1] =-std::sin(s);}
-// Derivative of parametric function
-void d2_parametric_edge_0(const double& s, Vector<double>& dx)
- { dx[0] = std::sin(s);  dx[1] =-std::cos(s);}
+enum Boundary_case {Resting = 0,  Clamped = 1, Free  = 2 };
+Boundary_case boundary_case = Resting;
 
-// Parametric function for boundary part 1
-void parametric_edge_1(const double& s, Vector<double>& x)
-{ x[0] = std::sin(s);  x[1] =-std::cos(s);}
-// Derivative of parametric function
-void  d_parametric_edge_1(const double& s, Vector<double>& dx)
-{ dx[0] = std::cos(s);  dx[1] = std::sin(s);};
-// Derivative of parametric function
-void  d2_parametric_edge_1(const double& s, Vector<double>& dx)
-{ dx[0] =-std::sin(s);  dx[1] = std::cos(s);};
-
-// Get s from x
-double get_s_0(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the upper semi circular arc
- return atan2(-x[0],x[1]);
-}
-
-// Get s from x
-double get_s_1(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the lower semi circular arc
-return atan2(x[0],-x[1]);
-}
+/*                     PARAMETRIC BOUNDARY DEFINITIONS                        */
+// Here we create the geom objects for the Parametric Boundary Definition 
+CurvilineCircleTop parametric_curve_top;
+CurvilineCircleBottom parametric_curve_bottom;
 
 // Assigns the value of pressure depending on the position (x,y)
 void get_pressure(const Vector<double>& x, double& pressure)
 {
- pressure = p_mag; //constant pressure
+ // Uniform Pressure
+ if(boundary_case != Free )
+  {
+   pressure = p_mag;
+  }
+ else // if (boundary_case ==  Free )
+  { 
+   double r2 = x[0]*x[0]+x[1]*x[1];
+   pressure = p_mag*(r2-0.5);
+  }
 }
 
 // The normal and tangential directions.
@@ -100,11 +86,6 @@ void get_normal_and_tangent(const Vector<double>& x, Vector<double>& n,
  n[1] = x[1]/sqrt(x[0]*x[0]+x[1]*x[1]);
 
  // The derivatives of the x and y components
- //  Dn(0,0) = 1.0/sqrt(x[0]*x[0]+x[1]*x[1])-x[0]*x[0]*pow(x[0]*x[0]+x[1]*x[1],-1.5);
- //  Dn(0,1) =-x[0]*x[1]*pow(x[0]*x[0]+x[1]*x[1],-1.5);
- //  Dn(1,0) =-x[0]*x[1]*pow(x[0]*x[0]+x[1]*x[1],-1.5);
- //  Dn(1,1) = 1.0/sqrt(x[0]*x[0]+x[1]*x[1])-x[1]*x[1]*pow(x[0]*x[0]+x[1]*x[1],-1.5);
-
  Dn(0,0) = x[1]*x[1] * pow(x[0]*x[0]+x[1]*x[1],-1.5);
  Dn(1,0) =-x[1]*x[0] * pow(x[0]*x[0]+x[1]*x[1],-1.5);
  Dn(0,1) =-x[0]*x[1] * pow(x[0]*x[0]+x[1]*x[1],-1.5);
@@ -123,33 +104,35 @@ void get_normal_and_tangent(const Vector<double>& x, Vector<double>& n,
 //Exact solution for constant pressure, circular domain and resting boundary conditions
 void get_exact_w(const Vector<double>& x, Vector<double>& w)
 {
+// Exact w depends on boundary case
+switch (boundary_case)
+  {
+  case Resting:
+   w[0]= p_mag*(1-x[0]*x[0]-x[1]*x[1])*((5.+nu)/(1.+nu)-x[0]*x[0]-x[1]*x[1])/64.;
+  break;
+  case Clamped:
+   w[0]= p_mag*pow(1-x[0]*x[0]-x[1]*x[1],2)/64.;
+  break;
+  case Free:
+   /*w[0]= */
+  break;
+  default:
+   /* SCREAM */
+  break;
+ }
+}
+
+// //Exact solution for constant pressure, circular domain and resting boundary conditions
+// void get_exact_w_radial(const Vector<double>& x, Vector<double>& w)
+// {
 // //solution (r^4-br^2+c)/64 for w=0 and w'=0 or mrt=0
 // w[0]= p_mag*pow(x[0]*x[0]+x[1]*x[1]-1,2)/64;
-// w[1]= x[0]*p_mag*(x[0]*x[0]+x[1]*x[1]-1)/16;
-// w[2]= x[1]*p_mag*(x[0]*x[0]+x[1]*x[1]-1)/16;
-// w[3]= p_mag*(3*x[0]*x[0]+x[1]*x[1]-1)/16;
+// w[1]= p_mag*(x[0]*x[0]+x[1]*x[1]-1)*sqrt(x[0]*x[0]+x[1]*x[1])/16.;
+// w[2]= 0.0;
+// w[3]= p_mag*(3*x[0]*x[0]+3*x[1]*x[1]-1)/16.;
 // w[4]= p_mag*x[0]*x[1]/8;
 // w[5]= (x[0]*x[0]+3*x[1]*x[1]-1)/16;
-w[0]= p_mag*(1-x[0]*x[0]-x[1]*x[1])*((5.+nu)/(1.+nu)-x[0]*x[0]-x[1]*x[1])/64.;
-// w[1]= p_mag*(1-x[0]*x[0]+x[1]*x[1])*((5+nu)/(1+nu)-x[0]*x[0]+x[1]*x[1])/64;
-// w[2]= x[1]*p_mag*(x[0]*x[0]+x[1]*x[1]-1)/16;
-// w[3]= p_mag*(3*x[0]*x[0]+x[1]*x[1]-1)/16;
-// w[4]= p_mag*x[0]*x[1]/8;
-// w[5]= (x[0]*x[0]+3*x[1]*x[1]-1)/16;
-}
-
-//Exact solution for constant pressure, circular domain and resting boundary conditions
-void get_exact_w_radial(const Vector<double>& x, Vector<double>& w)
-{
-//solution (r^4-br^2+c)/64 for w=0 and w'=0 or mrt=0
-w[0]= p_mag*pow(x[0]*x[0]+x[1]*x[1]-1,2)/64;
-w[1]= p_mag*(x[0]*x[0]+x[1]*x[1]-1)*sqrt(x[0]*x[0]+x[1]*x[1])/16.;
-w[2]= 0.0;
-w[3]= p_mag*(3*x[0]*x[0]+3*x[1]*x[1]-1)/16.;
-w[4]= p_mag*x[0]*x[1]/8;
-w[5]= (x[0]*x[0]+3*x[1]*x[1]-1)/16;
-}
-
+// }
 }
 
 ///////////////////////////////////////////////////////////
@@ -163,7 +146,6 @@ w[5]= (x[0]*x[0]+3*x[1]*x[1]-1)/16;
 template<class ELEMENT>
 class UnstructuredFvKProblem : public virtual Problem
 {
-
 public:
 
 /// Constructor
@@ -217,7 +199,8 @@ ofstream Trace_file;
 enum
 {
  Outer_boundary0 = 0,
- Outer_boundary1 = 1
+ Outer_boundary1 = 1,
+ Inner_boundary0 = 2
 };
 
 double Element_area;
@@ -293,12 +276,48 @@ zeta_end, nsegment, Outer_boundary1);
 outer_boundary_pt =
 new TriangleMeshClosedCurve(outer_curvilinear_boundary_pt);
 
+// Internal bit - this means we can have a boundary which is just the centre
+// We start by creating the internal boundaries
+// The boundary 2 is defined by its two vertices
+// Open curve 1
+Vector<Vector<double> > vertices(2,Vector<double>(2,0.0));
+vertices[0][0] = 1.0;
+vertices[0][1] = 0.0;
+
+vertices[1][0] = 0.0;
+vertices[1][1] = 0.0;
+unsigned boundary_id = Inner_boundary0;
+
+TriangleMeshPolyLine *boundary2_pt =
+  new TriangleMeshPolyLine(vertices, boundary_id);
+
+// Total number of open curves in the domain
+unsigned n_open_curves = 1;
+// We want internal open curves
+Vector<TriangleMeshOpenCurve *> inner_open_boundaries_pt(n_open_curves);
+// Connect it
+boundary2_pt -> connect_initial_vertex_to_curviline(dynamic_cast<TriangleMeshCurviLine*>(outer_curvilinear_boundary_pt[0]),0.0);
+
+// Each internal open curve is defined by a vector of
+// TriangleMeshCurveSection,
+// on this example we only need one curve section for each internal boundary
+Vector<TriangleMeshCurveSection *> internal_curve_section1_pt(1);
+internal_curve_section1_pt[0] = boundary2_pt;
+
+// The open curve that define this boundary is composed of just one
+// curve section
+ inner_open_boundaries_pt[0] =
+    new TriangleMeshOpenCurve(internal_curve_section1_pt);
+
 //Create the mesh
 //---------------
 //Create mesh parameters object
 TriangleMeshParameters mesh_parameters(outer_boundary_pt);
 
 mesh_parameters.element_area() = element_area;
+
+// Specify the internal open boundaries
+mesh_parameters.internal_open_curves_pt() = inner_open_boundaries_pt;
 
 // Build an assign bulk mesh
 Bulk_mesh_pt=new TriangleMesh<ELEMENT>(mesh_parameters);
@@ -334,7 +353,6 @@ oomph_info << "Number of equations: "
 }
 
 
-
 //==start_of_complete======================================================
 /// Set boundary condition exactly, and complete the build of 
 /// all elements
@@ -342,6 +360,28 @@ oomph_info << "Number of equations: "
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
 {   
+// Complete the build of all elements so they are fully functional
+unsigned n_element = Bulk_mesh_pt->nelement();
+for(unsigned e=0;e<n_element;e++)
+{
+// Upcast from GeneralisedElement to the present element
+ELEMENT* el_pt = dynamic_cast<ELEMENT*>(Bulk_mesh_pt->element_pt(e));
+
+//Set the pressure function pointers and the physical constants
+el_pt->pressure_fct_pt() = &TestSoln::get_pressure;
+el_pt->nu_pt() = &TestSoln::nu;
+}
+
+// Apply Dirichlet boundary conditions (projection ignores
+apply_boundary_conditions();
+}
+
+//==start_of_apply_bc=====================================================
+/// Helper function to apply boundary conditions
+//========================================================================
+template<class ELEMENT>
+void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
+{
 unsigned nbound = Outer_boundary1 + 1;
 // Set the boundary conditions for problem: All nodes are
 // free by default -- just pin the ones that have Dirichlet conditions
@@ -355,113 +395,69 @@ for (unsigned inod=0;inod<num_nod;inod++)
 {
  // Get nod
  Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
- Vector<double> x(2,0.0),w(6,0.0);
- x[0]=nod_pt->x(0);
- x[1]=nod_pt->x(1);
+ /* Get x here if needed for b/c*/
 
- // TestSoln::get_exact_w_radial(x,w);
- // Pin unknown values (everything except for the second normal derivative)
- nod_pt->pin(0);
- nod_pt->set_value(0,0.0);
-// nod_pt->pin(1);
-// nod_pt->set_value(1,0.0);
- nod_pt->pin(2);
- nod_pt->set_value(2,0.0);
-//  nod_pt->pin(4);
-//  nod_pt->set_value(4,0.0);
- nod_pt->pin(5);
- nod_pt->set_value(5,0.0);
+ // Bell and Curved Bell have six dof types on each vertex node 
+ // They are by default [ w w,x w,y w,xx w,xy w,yy ]
+ // BUT if we rotate the Hermite degrees of freedom we replace them with the
+ // specified normal / tangent degrees of freedom such that they are
+ // [ w w,n w,t w,nn w,nt w,tt ]
+ const unsigned ndof_types =6;
+ for(unsigned idof=0; idof<ndof_types;++idof)
+  {
+   // Trace dofs are value, tangent deriv and second tangent deriv
+   const bool w_trace_dof = (idof==0 || idof==2 || idof ==5);
+   const bool dwdn_trace_dof = (idof==1 || idof==4);
+   // If we are clamped do w trace dofs and dwdn trace dofs 
+   if(TestSoln::boundary_case==TestSoln::Clamped && (w_trace_dof || dwdn_trace_dof))
+    {
+     nod_pt->pin(idof);
+     nod_pt->set_value(idof,0.0);
+    }
+   // If we are resting only do w trace dofs 
+   else if(TestSoln::boundary_case==TestSoln::Resting && (w_trace_dof))
+    {
+     nod_pt->pin(idof);
+     nod_pt->set_value(idof,0.0);
+    }
+   else {/* Pin Nothing */}
  }
+ }//Loop nodes
 } // end loop over boundaries 
-
-
-// Complete the build of all elements so they are fully functional
-unsigned n_element = Bulk_mesh_pt->nelement();
-for(unsigned e=0;e<n_element;e++)
-{
-// Upcast from GeneralisedElement to the present element
-ELEMENT* el_pt = dynamic_cast<ELEMENT*>(Bulk_mesh_pt->element_pt(e));
-
-//Set the pressure function pointers and the physical constants
-el_pt->pressure_fct_pt() = &TestSoln::get_pressure;
-el_pt->nu_pt() = &TestSoln::nu;
-}
-
-// Loop over flux elements to pass pointer to prescribed traction function
-
-/// Set pointer to prescribed traction function for traction elements
-//set_prescribed_traction_pt();
-
-// Re-apply Dirichlet boundary conditions (projection ignores
-// boundary conditions!)
-apply_boundary_conditions();
-}
-
-//==start_of_apply_bc=====================================================
-/// Helper function to apply boundary conditions
-//========================================================================
-template<class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
-{
-
-// Loop over all boundary nodes
-//Just loop over outer boundary conditions
-unsigned nbound = Outer_boundary1 + 1;
-
-for(unsigned ibound=0;ibound<nbound;ibound++)
-{
-unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
-for (unsigned inod=0;inod<num_nod;inod++)
-{
- // Get node
- Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
- 
- // Extract nodal coordinates from node:
- Vector<double> x(2);
- x[0]=nod_pt->x(0);
- x[1]=nod_pt->x(1);
-}
-} 
-
 } // end set bc
-
-template <class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::
-create_traction_elements(const unsigned &b, Mesh* const &bulk_mesh_pt, 
-                             Mesh* const &surface_mesh_pt)
-{
-}// end create traction elements
-
+/// A function that upgrades straight sided elements to be curved. This involves
+// Setting up the parametric boundary, F(s) and the first derivative F'(s)
+// We also need to set the edge number of the upgraded element and the positions
+// of the nodes j and k (defined below) and set which edge (k) is to be exterior
+/*            @ k                                                             */
+/*           /(                                                               */
+/*          /. \                                                              */
+/*         /._._)                                                             */
+/*      i @     @ j                                                           */
+// For RESTING or FREE boundaries we need to have a C2 CONTINUOUS boundary
+// representation. That is we need to have a continuous 2nd derivative defined 
+// too. This is well discussed in by [Zenisek 1981] (Aplikace matematiky , 
+// Vol. 26 (1981), No. 2, 121--141). This results in the necessity for F''(s) 
+// as well.
 template <class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::
 upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt) 
 {
  // How many bulk elements adjacent to boundary b
  unsigned n_element = bulk_mesh_pt-> nboundary_element(b);
- 
  // These depend on the boundary we are on
- void (*parametric_edge_fct_pt)(const double& s, Vector<double>& x);
- void (*d_parametric_edge_fct_pt)(const double& s, Vector<double>& dx);
- void (*d2_parametric_edge_fct_pt)(const double& s, Vector<double>& dx);
- double (*get_arc_position)(const Vector<double>& s);
- 
-// Define the functions for each part of the boundary
+ CurvilineGeomObject* parametric_curve_pt; 
+ // Define the functions for each part of the boundary
  switch (b)
   {
    // Upper boundary
    case 0:
-    parametric_edge_fct_pt = &TestSoln::parametric_edge_0;
-    d_parametric_edge_fct_pt = &TestSoln::d_parametric_edge_0;
-    d2_parametric_edge_fct_pt = &TestSoln::d2_parametric_edge_0;
-    get_arc_position = &TestSoln::get_s_0;
+    parametric_curve_pt = &TestSoln::parametric_curve_top;
    break;
 
    // Lower boundary
    case 1:
-    parametric_edge_fct_pt = &TestSoln::parametric_edge_1;
-    d_parametric_edge_fct_pt = &TestSoln::d_parametric_edge_1;
-    d2_parametric_edge_fct_pt = &TestSoln::d2_parametric_edge_1;
-    get_arc_position = &TestSoln::get_s_1;
+    parametric_curve_pt = &TestSoln::parametric_curve_bottom;
    break;
 
    default:
@@ -481,25 +477,21 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
     bulk_mesh_pt->boundary_element_pt(b,e));
    
    // Loop over nodes
-   unsigned nnode=bulk_el_pt->nnode();
+   const unsigned nnode=3;
    unsigned index_of_interior_node=3;
 
    // The edge that is curved
-   MyC1CurvedElements::TestElement<3>::Edge edge;
+   MyC1CurvedElements::Edge edge;
 
    // Vertices positions
    Vector<Vector<double> > xn(3,Vector<double>(2,0.0));
  
-   // Get vertices for debugging
-   Vector<Vector<double> > verts(3,Vector<double>(2,0.0));
    // Loop nodes
    for(unsigned n=0;n<nnode;++n)
     {
      // If it is on boundary
      Node* nod_pt = bulk_el_pt->node_pt(n);
-     verts[n][0]=nod_pt->x(0);
-     verts[n][1]=nod_pt->x(1);
-     if(nod_pt->is_on_boundary())
+     if(nod_pt->is_on_boundary(0) || nod_pt->is_on_boundary(1))
       {
        xn[n][0]=nod_pt->x(0);
        xn[n][1]=nod_pt->x(1);
@@ -511,21 +503,21 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
    double s_ubar, s_obar;
 
    // s at the next (cyclic) node after interior
-   s_ubar = (*get_arc_position)(xn[(index_of_interior_node+1) % 3]);
+   s_ubar = parametric_curve_pt->get_zeta(xn[(index_of_interior_node+1) % 3]);
    // s at the previous (cyclic) node before interior
-   s_obar = (*get_arc_position)(xn[(index_of_interior_node+2) % 3]);
+   s_obar = parametric_curve_pt->get_zeta(xn[(index_of_interior_node+2) % 3]);
 
    // Assign edge case
    switch(index_of_interior_node)
     {
-     case 0: edge= MyC1CurvedElements::TestElement<3>::zero; 
+     case 0: edge= MyC1CurvedElements::zero; 
       break;
-     case 1: edge= MyC1CurvedElements::TestElement<3>::one; 
+     case 1: edge= MyC1CurvedElements::one; 
       break;
-     case 2: edge= MyC1CurvedElements::TestElement<3>::two; 
+     case 2: edge= MyC1CurvedElements::two; 
       break;
      // Should break it here HERE
-     default: edge= MyC1CurvedElements::TestElement<3>::none; 
+     default: edge= MyC1CurvedElements::none; 
       throw OomphLibError(
        "The edge number has been set to a value greater than two: either we have\
  quadrilateral elements or more likely the index_of_interior_node was never set\
@@ -535,23 +527,21 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
       break;
      }
    if (s_ubar>s_obar)
-    {std::cout<<s_ubar<<" "<<s_obar<<"\n";}
-   // Check for inverted elements HERE
+    {
+     oomph_info <<"Apparent clockwise direction of parametric coordinate."
+                <<"This will probably result in an inverted element."
+                <<"s_start="<<s_ubar<<"; s_end ="<<s_obar<<std::endl;
+     throw OomphLibError(
+       "The Edge coordinate appears to be decreasing from s_start to s_end. \
+Either the parametric boundary is defined to be clockwise (a no-no) or \
+the mesh has returned an inverted element (less likely)",
+       "UnstructuredFvKProblem::upgrade_edge_elements_to_curve(...)",
+       OOMPH_EXCEPTION_LOCATION);
+    }
 
    // Upgrade it
-    bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
-     *parametric_edge_fct_pt,*d_parametric_edge_fct_pt,
-     *d2_parametric_edge_fct_pt);
-    
-   // Get vertices for debugging
-   Vector<Vector<double> > lverts(3,Vector<double>(2,0.0));
-   lverts[0][0]=1.0;
-   lverts[1][1]=1.0;
-   Vector<Vector<double> > fkverts(3,Vector<double>(2,0.0));
-   bulk_el_pt->get_coordinate_x(lverts[0],fkverts[0]);
-   bulk_el_pt->get_coordinate_x(lverts[1],fkverts[1]);
-   bulk_el_pt->get_coordinate_x(lverts[2],fkverts[2]);
-
+   bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
+    parametric_curve_pt);     
   }
 }// end upgrade elements
 
@@ -562,20 +552,23 @@ rotate_edge_degrees_of_freedom( Mesh* const &bulk_mesh_pt)
  // How many bulk elements
  unsigned n_element = bulk_mesh_pt-> nelement();
  
- // Loop over the bulk elements adjacent to boundary b
+ // Loop over all the bulk elements
  for(unsigned e=0; e<n_element; e++)
   {
-   // Get pointer to bulk element adjacent to b
+   // Get pointer to bulk element    
    ELEMENT* el_pt = dynamic_cast<ELEMENT*>(Bulk_mesh_pt->element_pt(e));
  
    // Loop nodes  
    unsigned nnode = el_pt->nnode();
    unsigned nbnode=0 ;
-   // Count the number of boundary nodes
+   // Count the number of boundary nodes that element e has on boundaries 0 and 1
    for (unsigned n=0; n<nnode;++n)
-     {nbnode+=unsigned(el_pt->node_pt(n)->is_on_boundary());}
+     {
+      nbnode+=unsigned(el_pt->node_pt(n)->is_on_boundary(0)||
+                       el_pt->node_pt(n)->is_on_boundary(1));
+      }
 
-   // Now if we have nodes on boundary 
+   // Now, if we have nodes on boundary upgrade it
    if(nbnode>0)
     {
      // Set up vector
@@ -586,18 +579,16 @@ rotate_edge_degrees_of_freedom( Mesh* const &bulk_mesh_pt)
      for (unsigned n=0; n<nnode;++n)
       {
        // If it is on the boundary
-       if(el_pt->node_pt(n)->is_on_boundary())
+       if((el_pt->node_pt(n)->is_on_boundary(0)||
+                       el_pt->node_pt(n)->is_on_boundary(1)))
         {
          // Set up the Vector
          bnode[inode]=n;
          ++inode;
         }
       }
-    // Output that we have found element HERE
-    std::cout<<"Element "<<e<<" has "<<bnode<< " nodes on the boundary.\n";
-
+    // Now rotate Hermite degrees of freedom
     el_pt->set_up_rotated_dofs(nbnode,bnode,&TestSoln::get_normal_and_tangent);
-   // Now rotate the nodes
    }
  }
 }// end create traction elements
@@ -770,43 +761,73 @@ int main(int argc, char **argv)
  double element_area=0.2;
  CommandLineArgs::specify_command_line_flag("--element_area", &element_area);
 
+ // The `usage' flag
+ CommandLineArgs::specify_command_line_flag("--usage");
+
+ // Boundary case as an unsigned
+ // Flag for bad user input
+ bool invalid_input=false;
+ int boundary_case_num=0;
+ CommandLineArgs::specify_command_line_flag("--case", &boundary_case_num);
+
  // Parse command line
  CommandLineArgs::parse_and_assign(); 
+
+ // Assign the boundary case
+ if (boundary_case_num>=0 && boundary_case_num <=2)
+  {
+  // Cast int to enum
+  TestSoln::boundary_case=(TestSoln::Boundary_case)(boundary_case_num);
+  }
+ else // Default to what is set in TestSoln
+  { 
+   oomph_info<<"Boundary case \""<<boundary_case_num<<"\" not recognised.\n";
+   invalid_input=true;
+  }
 
  // Doc what has actually been specified on the command line
  CommandLineArgs::doc_specified_flags();
 
+ // Print usage 
+ if(CommandLineArgs::command_line_flag_has_been_set("--usage") || invalid_input)
+ {
+  oomph_info << "KIRCHOFF PLATE BENDING (TRI MESH)\n"<<
+   "-------------------------------------------------------------------------\n";
+  oomph_info<<"\nUsage of this driver code:\n\n";
+  oomph_info<<"Flags \n\n";
+  oomph_info<<"--dir DIR    Specifies output directory \n";
+  oomph_info<<"--p NUM              Specifies applied (constant) pressure \n";
+  oomph_info<<"--dp NUM             Specifies pressure step\n";
+  oomph_info<<"--element_area A     Specifies typical element size for Triangle"
+            <<" mesh generator. \n";
+  oomph_info<<"--n_step NUM         Specifies number of steps to take in "
+            <<"pressure \n";
+  oomph_info<<"--nu NUM             Specifies poisson ratio \n";
+  oomph_info<<"--case CASE          Specifies boundary case. Enumeration as "
+            <<"follows: \n";
+  oomph_info<<"                      0 - resting, uniform pressure\n";
+  oomph_info<<"                      1 - clamped, uniform pressure\n";
+  oomph_info<<"                      2 - free, quadratic loading\n";
+                 
+  // Terminate here
+  return(0);
+ }
+
  // Problem instance
  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,3> >problem(element_area);
- //problem.self_test();
-// problem.newton_solver_tolerance()=1e12;
-// problem.max_residuals()=1e3;
-  oomph_info<<"Solving for p=" << TestSoln::p_mag<<"\n";
-  problem.newton_solve();
+ problem.max_newton_iterations()=1;
+ oomph_info<<"Solving for p=" << TestSoln::p_mag<<"\n";
+ problem.newton_solve();
 
-  // Document
-  problem.doc_solution();
-  oomph_info << std::endl;
-  oomph_info << "---------------------------------------------" << std::endl;
-  oomph_info << " Pcos (" << TestSoln::p_mag << ")" << std::endl;
-  oomph_info << "Current dp  (" << p_step << ")" << std::endl;
-  oomph_info << "Poisson ratio (" << TestSoln::nu << ")" << std::endl;
-  oomph_info << "Solution number (" <<problem.Doc_info.number()-1 << ")" << std::endl;
-  oomph_info << "---------------------------------------------" << std::endl;
-  oomph_info << std::endl;
-
-  // Dump the data 
-  char filename[100];
-  std::ofstream filestream;
-  filestream.precision(15);
-  sprintf(filename,"%s/fvk_circle_data%i-%f.dump",
-          problem.Doc_info.directory().c_str(),
-          problem.Doc_info.number(),
-          TestSoln::p_mag
-         );
-  filestream.open(filename);
-  problem.dump(filestream);
-  filestream.close();
-
+ // Document
+ problem.doc_solution();
+ oomph_info << std::endl;
+ oomph_info << "---------------------------------------------" << std::endl;
+ oomph_info << "Pcos (" << TestSoln::p_mag << ")" << std::endl;
+ oomph_info << "Current dp  (" << p_step << ")" << std::endl;
+ oomph_info << "Poisson ratio (" << TestSoln::nu << ")" << std::endl;
+ oomph_info << "Solution number (" <<problem.Doc_info.number()-1 << ")" << std::endl;
+ oomph_info << "---------------------------------------------" << std::endl;
+ oomph_info << std::endl;
 } //End of main
 
