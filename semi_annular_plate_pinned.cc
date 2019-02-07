@@ -32,7 +32,7 @@
 #include "generic.h" 
 
 // The equations
-#include "kirchhoff_plate_bending.h"
+#include "C1_linear_plate_bending.h"
 
 // The mesh
 #include "meshes/triangle_mesh.h"
@@ -53,93 +53,13 @@ double B_h = inner_radius;
 // The coupling of the stretching energy
 double eta = 0;
 double p_mag = 1; 
-double nu = 0.0;
+const double nu = 0.0;
 
-// Parametric function for boundary part 0
-void parametric_edge_0(const double& s, Vector<double>& x)
- { x[0] =-std::sin(s);  x[1] = std::cos(s);}
-// Derivative of parametric function
-void d_parametric_edge_0(const double& s, Vector<double>& dx)
- { dx[0] =-std::cos(s);  dx[1] =-std::sin(s);}
-// Derivative of parametric function
-void d2_parametric_edge_0(const double& s, Vector<double>& dx)
- { dx[0] = std::sin(s);  dx[1] =-std::cos(s);}
+/*                     PARAMETRIC BOUNDARY DEFINITIONS                        */
+// Here we create the geom objects for the Parametric Boundary Definition 
+CurvilineCircleTop parametric_curve_top;
+CurvilineCircleTop parametric_curve_bottom(inner_radius,true);
 
-// Parametric function for boundary part 1
-void parametric_edge_1(const double& s, Vector<double>& x)
-{ x[0] = std::sin(s);  x[1] =-std::cos(s);}
-// Derivative of parametric function
-void  d_parametric_edge_1(const double& s, Vector<double>& dx)
-{ dx[0] = std::cos(s);  dx[1] = std::sin(s);};
-// Derivative of parametric function
-void  d2_parametric_edge_1(const double& s, Vector<double>& dx)
-{ dx[0] =-std::sin(s);  dx[1] = std::cos(s);};
-
-// Parametric function for boundary part 1
-void parametric_edge_straight(const double& s, Vector<double>& x)
-{ x[0] = s;  x[1] = 0.0;}
-// Derivative of parametric function
-void  d_parametric_edge_straight(const double& s, Vector<double>& dx)
-{ dx[0] = 1.0;  dx[1] = 0.0;};
-// Derivative of parametric function
-void  d2_parametric_edge_straight(const double& s, Vector<double>& dx)
-{ dx[0] = 0.0;  dx[1] = 0.0;};
-
-// Parametric function for boundary part 0
-void parametric_edge_2(const double& s, Vector<double>& x)
- { x[0] = inner_radius*std::sin(s);  x[1] = inner_radius*std::cos(s);}
-// Derivative of parametric function
-void d_parametric_edge_2(const double& s, Vector<double>& dx)
- { dx[0] = inner_radius*std::cos(s);  dx[1] =-inner_radius*std::sin(s);}
-// Derivative of parametric function
-void d2_parametric_edge_2(const double& s, Vector<double>& dx)
- { dx[0] =-inner_radius*std::sin(s);  dx[1] =-inner_radius*std::cos(s);}
-
-// Parametric function for boundary part 1
-void parametric_edge_3(const double& s, Vector<double>& x)
-{ x[0] =-inner_radius*std::sin(s);  x[1] =-inner_radius*std::cos(s);}
-// Derivative of parametric function
-void  d_parametric_edge_3(const double& s, Vector<double>& dx)
-{ dx[0] =-inner_radius*std::cos(s);  dx[1] = inner_radius*std::sin(s);};
-// Derivative of parametric function
-void  d2_parametric_edge_3(const double& s, Vector<double>& dx)
-{ dx[0] = inner_radius*std::sin(s);  dx[1] = inner_radius*std::cos(s);};
-
-// Get s from x
-double get_s_0(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the upper semi circular arc
- return atan2(-x[0], x[1]);
-}
-
-// Get s from x
-double get_s_1(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the lower semi circular arc
-return atan2( x[0],-x[1]);
-}
-
-// Get s from x
-double get_s_straight(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the lower semi circular arc
-return x[0];
-}
-
-
-// Get s from x
-double get_s_2(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the upper semi circular arc
- return atan2( x[0], x[1]);
-}
-
-// Get s from x
-double get_s_3(const Vector<double>& x)
-{
-// The arc length (parametric parameter) for the lower semi circular arc
-return atan2(-x[0],-x[1]);
-}
 // Assigns the value of pressure depending on the position (x,y)
 void get_pressure(const Vector<double>& xi, double& pressure)
 {
@@ -147,8 +67,15 @@ void get_pressure(const Vector<double>& xi, double& pressure)
  const double C2=2, theta =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
  // Pressure
 // pressure = 0.0;//4.0*std::exp(-atan2(-x,y)+Pi/2) * std::pow(x*x+y*y,-1.5) ;
-  pressure = C2*(std::exp(-sqrt(11)*theta)*(756. - 7425.*r + 8400.*r*r -
-4320.*pow(r,4))/(70.*pow(r,3)));
+//   pressure = C2*(std::exp(-sqrt(11)*theta)*(756. - 7425.*r + 8400.*r*r -
+// 4320.*pow(r,4))/(70.*pow(r,3)));
+
+double (*Power)(double base, int exponent) = &std::pow;
+// pressure = (-3*(-252 + 2475*r - 2800*Power(r,2) + 50400*Power(r,4)))/
+//    (1225.*std::exp(sqrt(11)*theta)*Power(r,3));
+
+pressure = (756 - 15*r*(495 - 560*r + 288*Power(r,3)))/
+   (70.*std::exp(sqrt(11)*theta)*Power(r,3));
 
 }
 
@@ -167,6 +94,15 @@ void get_normal_and_tangent(const Vector<double>& x, Vector<double>& t,
  Dn(1,1) = x[0]*x[0] * pow(x[0]*x[0]+x[1]*x[1],-1.5);
 
   // Fill in the tangent and derivatives of the tangent
+ t[0] =-x[1]/sqrt(x[0]*x[0]+x[1]*x[1]);
+ t[1] = x[0]/sqrt(x[0]*x[0]+x[1]*x[1]);
+
+ Dt(0,0) =-Dn(1,0);
+ Dt(1,0) = Dn(0,0); 
+ Dt(0,1) =-Dn(1,1);
+ Dt(1,1) = Dn(0,1);
+
+  // Fill in the tangent and derivatives of the tangent
  t[0] =-x[1]/(x[0]*x[0]+x[1]*x[1]);
  t[1] = x[0]/(x[0]*x[0]+x[1]*x[1]);
 
@@ -177,32 +113,152 @@ void get_normal_and_tangent(const Vector<double>& x, Vector<double>& t,
  Dt(1,1)=(-2*x[0]*x[1])/pow(x[0]*x[0] + x[1]*x[1],2);
 }
 
+
+ //Exact solution for constant pressure, circular domain and resting boundary conditions
+ void get_exact_polar_w(const Vector<double>& ri, Vector<double>& w)
+ {
+  // Solution : w =  r exp[-\theta]
+//  const double x=xi[0],y=xi[1];
+//  const double C2=2, phi =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
+  const double phi = ri[1], r = ri[0];
+  using namespace std;
+  w[0] = -/*C2**/ exp(-sqrt(11)*phi) *r*(-21. + 180.*r - 140.*r*r +24.*pow(r,4))/280.;
+  w[1] = -/*C2**/ exp(-sqrt(11)*phi) *(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
+  w[2] =  /*C2**/r*exp(-sqrt(11)*phi)*sqrt(11)*(-21 + 180*r - 140*r*r + 24*pow(r,4))/280.;
+  w[3] = -/*C2**/ exp(-sqrt(11)*phi) *(360 - 840*r +480*pow(r,3))/280.;
+  w[4] =  /*C2**/ exp(-sqrt(11)*phi)*sqrt(11)*(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
+  w[5] = -11/**C2*/*exp(-sqrt(11)*phi)*r*(-21 + 180*r - 140*r*r +24*pow(r,4))/(280.);
+ }
+
+
 //Exact solution for constant pressure, circular domain and resting boundary conditions
 void get_exact_w(const Vector<double>& xi, Vector<double>& w)
 {
  // Solution : w =  r exp[-\theta]
  // Solution : w =  r exp[-\theta]
  const double x=xi[0],y=xi[1];
- const double C2=1, theta =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
+// const double C2=1, theta =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
+ Vector<double> ri (2);
+ ri[1]=(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)); 
+ ri[0] = sqrt(x*x+y*y);
+ w.resize(6);
+ get_exact_polar_w(ri,w);
+ //double (*Power)(double base, int exponent) = &std::pow;
 
- w[0]= std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
+// w[0]= std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
+// w[0] = -(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//   (280.);
 }
 
 //Exact solution for constant pressure, circular domain and resting boundary conditions
-void get_exact_radial_w(const Vector<double>& xi, Vector<double>& w)
+void get_exact_w_on_straight_edge(const double x, Vector<double>& w, const unsigned& ibound)
 {
+ double (*Power)(double base, int exponent) = &std::pow;
+ w.resize(6);
+ if(ibound == 2)
+   {   
+   // Get the polar coodinate          
+   Vector<double> ri(2);
+   ri[1] = Pi, ri[0] = -x;
+   // Get the radial solution
+   get_exact_polar_w(ri,w);
+   // Here dw /dy = - dw/dt and dw /dr = - dw/dx, so to get Cartesian
+   // we need to modify the solution
+   w[1] *= -1;
+   w[2] *= -1;
+   }
+ else if (ibound ==3) 
+   {
+   // Get the polar coodinate          
+   Vector<double> ri(2);
+   ri[1] = 0, ri[0] = x;
+   // Get the radial solution
+   get_exact_polar_w(ri,w);
+   }
+ else
+  {
+    throw OomphLibError(
+     "I have encountered a boundary number that I wasn't expecting. This function\
+ is only defined for straight edges.",
+     "TestSoln:get_exact_w_on_straight_edge(...)",
+     OOMPH_EXCEPTION_LOCATION);
+  }
+ // The last second derivative is not the second y derivative, so remove it
+ w.pop_back();
  // Solution : w =  r exp[-\theta]
- const double x=xi[0],y=xi[1];
- const double C2=2, phi =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
- using namespace std;
-
- w[0] = -C2* exp(-sqrt(11)*phi) *r*(-21. + 180.*r - 140.*r*r +24.*pow(r,4))/280.;
- w[1] = -C2* exp(-sqrt(11)*phi) *(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
- w[2] =  C2*r*exp(-sqrt(11)*phi)*sqrt(11)*(-21 + 180*r - 140*r*r + 24*pow(r,4))/280.;
- w[3] = -C2* exp(-sqrt(11)*phi) *(360 - 840*r +480*pow(r,3))/280.;
- w[4] =  C2* exp(-sqrt(11)*phi)*sqrt(11)*(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
- w[5] = -11*C2*exp(-sqrt(11)*phi)*r*(-21 + 180*r - 140*r*r +24*pow(r,4))/(280.);
+// if(ibound == 2)
+//   {
+//    const double theta = Pi, r = -x;
+// //   w[0]= std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
+// //   // X derivative
+// //   w[1]=-std::exp(-sqrt(11)*theta)*(3./20. - 2*(9.*r)/7. + 3*r*r - 5*(6*pow(r,4))/35.);
+// //   // Y derivative (in -theta direction)
+// //   w[2]= -sqrt(11)*std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
+// //   // Second X derivative
+// //   w[3]= std::exp(-sqrt(11)*theta)*(- 2*(9.)/7. + 6*r - 20*(6*pow(r,3))/35.);
+// //   // X Y derivative
+// //   w[4]=-sqrt(11)*std::exp(-sqrt(11)*theta)*(3./20. - 2*(9.*r)/7. + 3*r*r - 5*(6*pow(r,4))/35.);
+//    //   // Second Y derivative not needed 
+//    
+//    // The solution
+//    w[0] = -(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // X derivative (in -r direction)
+//    w[1] =  ((-21 + 2*180*r - 3*140*Power(r,2) + 5*24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // Y derivativ (in -theta direction)
+//    w[2] = -sqrt(11)*(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // Second X derivative
+//    w[3] = -((2*180 - 6*140*Power(r,1) + 12*24*Power(r,3)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // X Y derivative
+//    w[4] = sqrt(11)*((-21 + 2*180*r - 3*140*Power(r,2) + 5*24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // Second Y derivative not needed 
+//   }
+// else if (ibound ==3) 
+//    {
+//    const double theta = 0, r = x;
+//   // w[0]= std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
+//   // // X derivative
+//   // w[1]= std::exp(-sqrt(11)*theta)*(3./20. - 2*(9.*r)/7. + 3*r*r - 5*(6*pow(r,4))/35.);
+//   // // Y derivative (in theta direction)
+//   // w[2]= -sqrt(11)*std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
+//   // // Second X derivative
+//   // w[3]= std::exp(-sqrt(11)*theta)*(- 2*(9.)/7. + 6*r - 20*(6*pow(r,3))/35.);
+//   // // X Y derivative
+//   // w[4]=-sqrt(11)*std::exp(-sqrt(11)*theta)*(3./20. - 2*(9.*r)/7. + 3*r*r - 5*(6*pow(r,4))/35.);
+//   // // Second Y derivative not needed 
+//   //
+//   // The solution
+//    w[0] = -(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // X derivative
+//    w[1] = -((-21 + 2*180*r - 3*140*Power(r,2) + 5*24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // Y derivativ (in -theta direction)
+//    w[2] =  sqrt(11)*(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // Second X derivative
+//    w[3] = -((2*180 - 6*140*Power(r,1) + 12*24*Power(r,3)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // X Y derivative
+//    w[4] = sqrt(11)*((-21 + 2*180*r - 3*140*Power(r,2) + 5*24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
+//      (280.);
+//    // Second Y derivative not needed 
+//    //
+//  w[0] = - exp(-sqrt(11)*theta) *r*(-21. + 180.*r - 140.*r*r +24.*pow(r,4))/280.;
+//  w[1] = - exp(-sqrt(11)*theta) *(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
+//  w[2] =  r*exp(-sqrt(11)*theta)*sqrt(11)*(-21 + 180*r - 140*r*r + 24*pow(r,4))/280.;
+//  w[3] = - exp(-sqrt(11)*theta) *(360 - 840*r +480*pow(r,3))/280.;
+//  w[4] =   exp(-sqrt(11)*theta)*sqrt(11)*(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
+//  w[5] = -11*exp(-sqrt(11)*theta)*r*(-21 + 180*r - 140*r*r +24*pow(r,4))/(280.);
+//   }
+// else
+//  {std::cerr<<"AGGGH"<<std::endl; exit(-1);}
 }
+
 }
 
 ///////////////////////////////////////////////////////////
@@ -281,29 +337,12 @@ enum
 
 double Element_area;
 
-// The extra members required for flux type boundary conditions.
-/// \short Number of "bulk" elements (We're attaching flux elements
-/// to bulk mesh --> only the first Nkirchhoff_elements elements in
-/// the mesh are bulk elements!)
-// unsigned Nkirchhoff_elements;
-
-/// \short Create bending moment elements on the b-th boundary of the
-/// problems mesh 
-void create_traction_elements(const unsigned &b, Mesh* const & bulk_mesh_py,
-                            Mesh* const &surface_mesh_pt);
-
 void upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const & 
  bulk_mesh_pt);
 
 void rotate_edge_degrees_of_freedom(Mesh* const &bulk_mesh_pt);
 
 
-/// \short Delete traction elements and wipe the surface mesh
-void delete_traction_elements(Mesh* const &surface_mesh_pt);
-
-/// \short Set pointer to prescribed-flux function for all elements
-/// in the surface mesh
-void set_prescribed_traction_pt();
 
 /// Pointer to "bulk" mesh
 TriangleMesh<ELEMENT>* Bulk_mesh_pt;
@@ -493,11 +532,9 @@ build_global_mesh();
 // Curved Edge upgrade
 upgrade_edge_elements_to_curve(0,Bulk_mesh_pt);
 upgrade_edge_elements_to_curve(1,Bulk_mesh_pt);
-upgrade_edge_elements_to_curve(2,Bulk_mesh_pt);
-upgrade_edge_elements_to_curve(3,Bulk_mesh_pt);
  
 // Rotate degrees of freedom
-rotate_edge_degrees_of_freedom(Bulk_mesh_pt);
+//rotate_edge_degrees_of_freedom(Bulk_mesh_pt);
 
 // Store number of bulk elements
 complete_problem_setup();
@@ -538,19 +575,26 @@ for (unsigned inod=0;inod<num_nod;inod++)
  x[0]=nod_pt->x(0);
  x[1]=nod_pt->x(1);
  oomph_info << "Pinning node at x="<< x <<"\n";
- TestSoln::get_exact_radial_w(x,w);
+// TestSoln::get_exact_radial_w(x,w);
+ TestSoln::get_exact_w_on_straight_edge(x[0],w, ibound);
  oomph_info << "To values x="<< w <<"\n";
- // Pin unknown values (everything except for the second normal derivative)
- nod_pt->pin(0);
- nod_pt->set_value(0,w[0]);
- nod_pt->pin(2);
- nod_pt->set_value(2,w[1]);
- nod_pt->pin(1);
- nod_pt->set_value(1,w[2]);
- nod_pt->pin(5);
- nod_pt->set_value(5,w[3]);
- nod_pt->pin(4);
- nod_pt->set_value(4,w[4]);
+// // Pin unknown values (everything except for the second normal derivative)
+ for(unsigned i =0;i<5;++i)
+  {
+   nod_pt->pin(i);
+   nod_pt->set_value(i,w[i]);
+  }
+//
+// nod_pt->pin(0);
+// nod_pt->set_value(0,w[0]);
+// nod_pt->pin(2);
+// nod_pt->set_value(2,w[1]);
+// nod_pt->pin(1);
+// nod_pt->set_value(1,w[2]);
+// nod_pt->pin(5);
+// nod_pt->set_value(5,w[3]);
+// nod_pt->pin(4);
+// nod_pt->set_value(4,w[4]);
 //  nod_pt->pin(3);
 //  nod_pt->set_value(3,w[5]);
  }
@@ -607,12 +651,6 @@ for (unsigned inod=0;inod<num_nod;inod++)
 
 } // end set bc
 
-template <class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::
-create_traction_elements(const unsigned &b, Mesh* const &bulk_mesh_pt, 
-                             Mesh* const &surface_mesh_pt)
-{
-}// end create traction elements
 
 template <class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::
@@ -622,36 +660,21 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
  unsigned n_element = bulk_mesh_pt-> nboundary_element(b);
  
  // These depend on the boundary we are on
- void (*parametric_edge_fct_pt)(const double& s, Vector<double>& x);
- void (*d_parametric_edge_fct_pt)(const double& s, Vector<double>& dx);
- void (*d2_parametric_edge_fct_pt)(const double& s, Vector<double>& dx);
- double (*get_arc_position)(const Vector<double>& s);
+ CurvilineGeomObject* parametric_curve_pt; 
  
 // Define the functions for each part of the boundary
  switch (b)
   {
    // Upper boundary
    case 0:
-    parametric_edge_fct_pt = &TestSoln::parametric_edge_0;
-    d_parametric_edge_fct_pt = &TestSoln::d_parametric_edge_0;
-    d2_parametric_edge_fct_pt = &TestSoln::d2_parametric_edge_0;
-    get_arc_position = &TestSoln::get_s_0;
+    parametric_curve_pt = &TestSoln::parametric_curve_top;
    break;
 
    // Lower boundary
    case 1:
-    parametric_edge_fct_pt = &TestSoln::parametric_edge_2;
-    d_parametric_edge_fct_pt = &TestSoln::d_parametric_edge_2;
-    d2_parametric_edge_fct_pt = &TestSoln::d2_parametric_edge_2;
-    get_arc_position = &TestSoln::get_s_2;
+    parametric_curve_pt = &TestSoln::parametric_curve_bottom;
    break;
-   // Lower boundary
-   case 2: case 3:
-    parametric_edge_fct_pt = &TestSoln::parametric_edge_straight;
-    d_parametric_edge_fct_pt = &TestSoln::d_parametric_edge_straight;
-    d2_parametric_edge_fct_pt = &TestSoln::d2_parametric_edge_straight;
-    get_arc_position = &TestSoln::get_s_straight;
-   break;
+
    default:
     throw OomphLibError(
      "I have encountered a boundary number that I wasn't expecting. This is very\
@@ -672,8 +695,8 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
    unsigned nnode=bulk_el_pt->nnode();
    unsigned index_of_interior_node=3;
 
-   // The edge that is curved
-   MyC1CurvedElements::TestElement<5>::Edge edge;
+   // Enum for the curved edge
+   MyC1CurvedElements::Edge edge(MyC1CurvedElements::none);
 
    // Vertices positions
    Vector<Vector<double> > xn(3,Vector<double>(2,0.0));
@@ -699,22 +722,23 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
    double s_ubar, s_obar;
 
    std::cout<<verts<<"\n";
+   std::cout<<index_of_interior_node<<"\n";
    // s at the next (cyclic) node after interior
-   s_ubar = (*get_arc_position)(xn[(index_of_interior_node+1) % 3]);
+   s_ubar = parametric_curve_pt->get_zeta(xn[(index_of_interior_node+1) % 3]);
    // s at the previous (cyclic) node before interior
-   s_obar = (*get_arc_position)(xn[(index_of_interior_node+2) % 3]);
+   s_obar = parametric_curve_pt->get_zeta(xn[(index_of_interior_node+2) % 3]);
 
    // Assign edge case
    switch(index_of_interior_node)
     {
-     case 0: edge= MyC1CurvedElements::TestElement<5>::zero; 
+     case 0: edge= MyC1CurvedElements::zero; 
       break;
-     case 1: edge= MyC1CurvedElements::TestElement<5>::one; 
+     case 1: edge= MyC1CurvedElements::one; 
       break;
-     case 2: edge= MyC1CurvedElements::TestElement<5>::two; 
+     case 2: edge= MyC1CurvedElements::two; 
       break;
      // Should break it here HERE
-     default: edge= MyC1CurvedElements::TestElement<5>::none; 
+     default: edge= MyC1CurvedElements::none; 
       throw OomphLibError(
        "The edge number has been set to a value greater than two: either we have\
  quadrilateral elements or more likely the index_of_interior_node was never set\
@@ -724,13 +748,21 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
       break;
      }
    if (s_ubar>s_obar)
-    {std::cout<<s_ubar<<" "<<s_obar<<"\n";}
-   // Check for inverted elements HERE
+    {
+     oomph_info <<"Apparent clockwise direction of parametric coordinate."
+                <<"This will probably result in an inverted element."
+                <<"s_start="<<s_ubar<<"; s_end ="<<s_obar<<std::endl;
+     throw OomphLibError(
+       "The Edge coordinate appears to be decreasing from s_start to s_end. \
+Either the parametric boundary is defined to be clockwise (a no-no) or \
+the mesh has returned an inverted element (less likely)",
+       "UnstructuredFvKProblem::upgrade_edge_elements_to_curve(...)",
+       OOMPH_EXCEPTION_LOCATION);
+    }
 
    // Upgrade it
-    bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
-     *parametric_edge_fct_pt,*d_parametric_edge_fct_pt,
-     *d2_parametric_edge_fct_pt);
+   bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
+    parametric_curve_pt);     
     
    // Get vertices for debugging
    Vector<Vector<double> > lverts(3,Vector<double>(2,0.0));
@@ -816,7 +848,7 @@ some_file << "TEXT X = 22, Y = 92, CS=FRAME T = \""
 some_file.close();
 
 // Number of plot points
-npts = 6;
+npts = 25;
 
 sprintf(filename,"RESLT/soln%i-%f.dat",Doc_info.number(),Element_area);
 some_file.open(filename);
@@ -828,7 +860,7 @@ some_file.close();
 //  Output exact solution
 sprintf(filename,"%s/exact_interpolated_soln%i-%f.dat","RESLT",Doc_info.number(),Element_area);
 some_file.open(filename);
-Bulk_mesh_pt->output_fct(some_file,npts,TestSoln::get_exact_radial_w); 
+Bulk_mesh_pt->output_fct(some_file,npts,TestSoln::get_exact_w); 
 some_file << "TEXT X = 22, Y = 92, CS=FRAME T = \"" 
        << comment << "\"\n";
 some_file.close();
@@ -866,7 +898,7 @@ for (unsigned r = 0; r < n_region; r++)
  sprintf(filename,"RESLT/error%i-%f.dat",Doc_info.number(),Element_area);
  some_file.open(filename);
  
- Bulk_mesh_pt->compute_error(some_file,TestSoln::get_exact_radial_w,
+ Bulk_mesh_pt->compute_error(some_file,TestSoln::get_exact_w,
                         dummy_error,zero_norm);
  some_file.close();
  
@@ -896,28 +928,6 @@ Doc_info.number()++;
 
 } // end of doc
 
-//============start_of_delete_flux_elements==============================
-/// Delete Poisson Flux Elements and wipe the surface mesh
-//=======================================================================
-template<class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>
-::delete_traction_elements(Mesh* const &surface_mesh_pt)
-{
-// How many surface elements are in the surface mesh
-unsigned n_element = surface_mesh_pt->nelement();
-
-// Loop over the surface elements
-for(unsigned e=0;e<n_element;e++)
-{
-// Kill surface element
-delete surface_mesh_pt->element_pt(e);
-}
-
-// Wipe the mesh
-surface_mesh_pt->flush_element_and_node_storage();
-
-} // end of delete_flux_elements
-
 
 //=======start_of_main========================================
 ///Driver code for demo of inline triangle mesh generation
@@ -940,9 +950,6 @@ int main(int argc, char **argv)
  string output_dir="RSLT";
  CommandLineArgs::specify_command_line_flag("--dir", &output_dir);
 
- // Poisson Ratio
- CommandLineArgs::specify_command_line_flag("--nu", &TestSoln::nu);
- 
  // Applied Pressure
  CommandLineArgs::specify_command_line_flag("--p", &TestSoln::p_mag);
  
@@ -962,7 +969,9 @@ int main(int argc, char **argv)
 
  // Problem instance
  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,5> >problem(element_area);
- //problem.self_test();
+ problem.doc_solution();
+  problem.self_test();
+  problem.max_newton_iterations()=1;
 // problem.newton_solver_tolerance()=1e12;
   problem.max_residuals()=1e3;
   oomph_info<<"Solving for p=" << TestSoln::p_mag<<"\n";
