@@ -64,10 +64,21 @@ CurvilineCircleTop parametric_curve_bottom(inner_radius,true);
 void get_pressure(const Vector<double>& xi, double& pressure)
 {
  const double x=xi[0],y=xi[1];
- const double theta =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
+ //const double theta =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
+ const double theta =(atan2(y,x)), r = sqrt(x*x+y*y);
  // Pressure
+// pressure = (756 - 15*r*(495 - 560*r + 288*pow(r,3)))/
+//    (70.*std::exp(sqrt(11)*theta)*pow(r,3));
+//
  pressure = (756 - 15*r*(495 - 560*r + 288*pow(r,3)))/
-    (70.*std::exp(sqrt(11)*theta)*pow(r,3));
+   (70.*std::exp(sqrt(11)*theta)*pow(r,3));
+
+}
+
+// Assigns the value of pressure depending on the position (x,y)
+void get_pressure(const Vector<double>& xi,Vector<double>& pressure)
+{
+ get_pressure(xi,pressure[0]);
 }
 
 // The normal and tangential directions.
@@ -124,36 +135,63 @@ void get_normal_and_tangent(const Vector<double>& x, Vector<double>& t,
 void get_exact_w(const Vector<double>& xi, Vector<double>& w)
 {
  const double x=xi[0],y=xi[1];
- Vector<double> ri (2);
- ri[1]=(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)); 
+ Vector<double> ri (2),wp(6);
+ ri[1]=(atan2(y,x)); 
  ri[0] = sqrt(x*x+y*y);
  w.resize(6);
- get_exact_polar_w(ri,w);
+ get_exact_polar_w(ri,wp);
+ // Now dtheta / dx etc.
+ const double r2 = x*x+ y*y,  dtheta_dx = - y / r2 , dtheta_dy = x / r2, 
+   d2theta_dx2 = 2*x*y / (r2*r2), d2theta_dxdy = (y*y-x*x) / (r2*r2),
+   d2theta_dy2 =-2*x*y / (r2*r2); 
+
+ const double r = sqrt(r2),  dr_dx =  x / r , dr_dy = y / r, 
+   d2r_dx2 = y*y / (r2*r), d2r_dxdy = -x*y / (r2*r),
+   d2r_dy2 = x*x / (r2*r); 
+ // Now construct
+ w[0] = wp[0];
+ w[1] = wp[1]* dr_dx + wp[2]* dtheta_dx;
+ w[2] = wp[1]* dr_dy + wp[2]* dtheta_dy;
+ w[3] = wp[3]* pow(dr_dx,2) + 2*wp[4]* dr_dx * dtheta_dx + wp[5] * pow(dr_dy,2)
+      + wp[1] * d2r_dx2 + wp[2] * d2theta_dx2;
+ w[4] = wp[3]* dr_dx*dr_dy + wp[4]* (dr_dy * dtheta_dx + dr_dx * dtheta_dy) 
+      + wp[5] * dtheta_dx * dtheta_dy + wp[1] * d2r_dxdy + wp[2] * d2theta_dxdy;
+ w[5] = wp[3]* pow(dr_dy,2) + 2*wp[4]* dr_dy * dtheta_dy + wp[5] * pow(dr_dy,2)
+      + wp[1] * d2r_dy2 + wp[2] * d2theta_dy2;
 }
 
 //Exact solution for constant pressure, circular domain and resting boundary conditions
-void get_exact_w_on_straight_edge(const double x, Vector<double>& w, const unsigned& ibound)
+void get_exact_w_on_straight_edge(const double r, Vector<double>& w, const unsigned& ibound)
 {
  w.resize(6);
  if(ibound == 2)
    {   
    // Get the polar coodinate          
    Vector<double> ri(2);
-   ri[1] = Pi, ri[0] = -x;
+   ri[1] = Pi/2, ri[0] = r;
    // Get the radial solution
    get_exact_polar_w(ri,w);
-   // Here dw /dy = - dw/dt and dw /dr = - dw/dx, so to get Cartesian
-   // we need to modify the solution
-   w[1] *= -1;
-   w[2] *= -1;
+   // Tmp storage
+   const Vector<double> wr = w ;
+   // dw / dt =  -dw /  dx
+   w[1] = -wr[2];
+   // dw / dr =   dw /  dy
+   w[2] =  wr[1];
+   // d2w / dr2 =   d2w /  dy2
+   w[3] = -wr[5]/r; /* we don't know the value of this! HERE */
+   // d2w / dr dt =  -d2w /  dx dy
+   w[4] = -wr[4]; 
+   // d2w / dr2 =   d2w /  dy2
+   w[5] = wr[3];
    }
  else if (ibound ==3) 
    {
    // Get the polar coodinate          
    Vector<double> ri(2);
-   ri[1] = 0, ri[0] = x;
+   ri[1] = 0, ri[0] = r;
    // Get the radial solution
    get_exact_polar_w(ri,w);
+   w[5] = w[5] / r;
    }
  else
   {
@@ -164,7 +202,7 @@ void get_exact_w_on_straight_edge(const double x, Vector<double>& w, const unsig
      OOMPH_EXCEPTION_LOCATION);
   }
  // The last second derivative is not the second y derivative, so remove it
- w.pop_back();
+ //w.pop_back();
 }
 
 }
@@ -280,8 +318,8 @@ Vector<TriangleMeshCurveSection*> outer_curvilinear_boundary_pt(2);
 
 //First bit
 double zeta_start = 0.0;
-double zeta_end = MathematicalConstants::Pi;
-unsigned nsegment = (int)(MathematicalConstants::Pi/sqrt(element_area));
+double zeta_end = MathematicalConstants::Pi/2.;
+unsigned nsegment = (int)(MathematicalConstants::Pi/(2*sqrt(element_area)));
 outer_curvilinear_boundary_pt[0] =
 new TriangleMeshCurviLine(outer_boundary_ellipse_pt, zeta_start,
 zeta_end, nsegment, Outer_boundary0);
@@ -289,11 +327,11 @@ zeta_end, nsegment, Outer_boundary0);
 // Second bit
 Vector<Vector<double> > vertices(3,Vector<double>(2,0.0));
 
-vertices[0][0] =-1.0;
+vertices[0][1] = 1.0;
 
-vertices[1][0] =-0.75;
+vertices[1][1] = 0.75;
 
-vertices[2][0] =-0.5;
+vertices[2][1] = 0.5;
 
 TriangleMeshPolyLine *boundary1_pt =
   new TriangleMeshPolyLine(vertices, Straight_boundary0);
@@ -302,18 +340,21 @@ TriangleMeshPolyLine *boundary1_pt =
 // Create storage for curve sections
 Vector<TriangleMeshCurveSection*> inner_curvilinear_boundary_pt(2);
 //Third bit
-zeta_start = MathematicalConstants::Pi;
+zeta_start = MathematicalConstants::Pi/2.;
 zeta_end = 0.0;
-nsegment = (int)(TestSoln::inner_radius*MathematicalConstants::Pi/sqrt(element_area));
+nsegment = (int)(TestSoln::inner_radius*MathematicalConstants::Pi/(2*sqrt(element_area)));
 inner_curvilinear_boundary_pt[0] =
 new TriangleMeshCurviLine(inner_boundary_ellipse_pt, zeta_start,
 zeta_end, nsegment, Inner_boundary0);
 
 // Fourth bit 
+vertices[0][1] = 0.0;
 vertices[0][0] = 0.5;
 
+vertices[1][1] = 0.0;
 vertices[1][0] = 0.75;
 
+vertices[2][1] = 0.0;
 vertices[2][0] = 1.0;
 
 TriangleMeshPolyLine *boundary3_pt =
@@ -352,21 +393,21 @@ TriangleMeshPolyLine *boundary3_pt =
    new TriangleMeshPolyLine(vertices, Internal_boundary1);
 
  // Third internal boundary
- vertices[0][0] =-0.5;
- vertices[0][1] = 0.0;
+ vertices[0][0] = 0.0;
+ vertices[0][1] = 0.5;
 
- vertices[1][0] =-0.75;
- vertices[1][1] = 0.25;
+ vertices[1][0] = 0.25;
+ vertices[1][1] = 0.75;
 
  TriangleMeshPolyLine *inner_boundary2_pt =
    new TriangleMeshPolyLine(vertices, Internal_boundary2);
 
  // Fourth internal boundary
- vertices[0][0] =-1.0;
- vertices[0][1] = 0.0;
+ vertices[0][0] = 0.0;
+ vertices[0][1] = 1.0;
 
- vertices[1][0] =-0.75;
- vertices[1][1] = 0.25;
+ vertices[1][0] = 0.25;
+ vertices[1][1] = 0.75;
 
  TriangleMeshPolyLine *inner_boundary3_pt =
    new TriangleMeshPolyLine(vertices, Internal_boundary3);
@@ -506,13 +547,22 @@ for (unsigned inod=0;inod<num_nod;inod++)
  x[0]=nod_pt->x(0);
  x[1]=nod_pt->x(1);
  oomph_info << "Pinning node at x="<< x <<"\n";
- TestSoln::get_exact_w_on_straight_edge(x[0],w, ibound);
+ //const double r = (ibound ==2 ? x[1] : x[0]) ;
+ // TestSoln::get_exact_w_on_straight_edge(r,w, ibound);
+ TestSoln::get_exact_w(x,w);
  oomph_info << "To values x="<< w <<"\n";
 // // Pin unknown values (everything except for the second normal derivative)
- for(unsigned i =0;i<5;++i)
+ for(unsigned i =0;i<6;++i)
   {
-   nod_pt->pin(i);
-   nod_pt->set_value(i,w[i]);
+   if(ibound == 2 && i==3)
+    { /* Do nothing */ }
+   else if(ibound == 3 && i==5)
+    { /* Do nothing */ }
+   else 
+    {
+     nod_pt->pin(i);
+     nod_pt->set_value(i,w[i]);
+    }
   }
  }
 } // end loop over boundaries 
@@ -727,6 +777,14 @@ some_file.close();
 sprintf(filename,"%s/exact_interpolated_soln%i-%f.dat","RESLT",Doc_info.number(),Element_area);
 some_file.open(filename);
 Bulk_mesh_pt->output_fct(some_file,npts,TestSoln::get_exact_w); 
+some_file << "TEXT X = 22, Y = 92, CS=FRAME T = \"" 
+       << comment << "\"\n";
+some_file.close();
+
+//  Output exact solution
+sprintf(filename,"%s/pressure_soln%i-%f.dat","RESLT",Doc_info.number(),Element_area);
+some_file.open(filename);
+Bulk_mesh_pt->output_fct(some_file,npts,TestSoln::get_pressure); 
 some_file << "TEXT X = 22, Y = 92, CS=FRAME T = \"" 
        << comment << "\"\n";
 some_file.close();
