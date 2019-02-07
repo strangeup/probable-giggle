@@ -108,31 +108,29 @@ void get_exact_w(const Vector<double>& x, Vector<double>& w)
 switch (boundary_case)
   {
   case Resting:
+   // See Timoshenko
    w[0]= p_mag*(1-x[0]*x[0]-x[1]*x[1])*((5.+nu)/(1.+nu)-x[0]*x[0]-x[1]*x[1])/64.;
   break;
   case Clamped:
+   // See Timoshenko
    w[0]= p_mag*pow(1-x[0]*x[0]-x[1]*x[1],2)/64.;
   break;
   case Free:
-   /*w[0]= */
+   {
+   const double r2 = x[0]*x[0] +x[1]*x[1];
+   // Solved by DGR 2019 (almost certainly exists elsewhere) 
+   w[0]= (p_mag*r2*(-9*r2 + 2*pow(r2,2) + 
+       (12*(2 + nu))/(1 + nu)))/1152.;
+   }
   break;
   default:
-   /* SCREAM */
+    throw OomphLibError(
+     "I have encountered a boundary case that I wasn't expecting..",
+     "UnstructuredFvKProblem::get_exact_w(...)",
+     OOMPH_EXCEPTION_LOCATION);
   break;
  }
 }
-
-// //Exact solution for constant pressure, circular domain and resting boundary conditions
-// void get_exact_w_radial(const Vector<double>& x, Vector<double>& w)
-// {
-// //solution (r^4-br^2+c)/64 for w=0 and w'=0 or mrt=0
-// w[0]= p_mag*pow(x[0]*x[0]+x[1]*x[1]-1,2)/64;
-// w[1]= p_mag*(x[0]*x[0]+x[1]*x[1]-1)*sqrt(x[0]*x[0]+x[1]*x[1])/16.;
-// w[2]= 0.0;
-// w[3]= p_mag*(3*x[0]*x[0]+3*x[1]*x[1]-1)/16.;
-// w[4]= p_mag*x[0]*x[1]/8;
-// w[5]= (x[0]*x[0]+3*x[1]*x[1]-1)/16;
-// }
 }
 
 ///////////////////////////////////////////////////////////
@@ -154,6 +152,8 @@ UnstructuredFvKProblem(double element_area = 0.1);
 /// Destructor
 ~UnstructuredFvKProblem()
 {
+ delete (Surface_mesh_pt);
+ delete (Bulk_mesh_pt);
 };
 
 /// Update after solve (empty)
@@ -221,13 +221,11 @@ void upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &
 
 void rotate_edge_degrees_of_freedom(Mesh* const &bulk_mesh_pt);
 
+/// Helper to pin the displacement at the centre
+void pin_displacement_at_centre_node();
 
-/// \short Delete traction elements and wipe the surface mesh
-void delete_traction_elements(Mesh* const &surface_mesh_pt);
-
-/// \short Set pointer to prescribed-flux function for all elements
-/// in the surface mesh
-void set_prescribed_traction_pt();
+/// Helper to pin the azimuthal dof on the edge
+void pin_rotation_on_edge_node();
 
 /// Pointer to "bulk" mesh
 TriangleMesh<ELEMENT>* Bulk_mesh_pt;
@@ -282,10 +280,7 @@ new TriangleMeshClosedCurve(outer_curvilinear_boundary_pt);
 // Open curve 1
 Vector<Vector<double> > vertices(2,Vector<double>(2,0.0));
 vertices[0][0] = 1.0;
-vertices[0][1] = 0.0;
 
-vertices[1][0] = 0.0;
-vertices[1][1] = 0.0;
 unsigned boundary_id = Inner_boundary0;
 
 TriangleMeshPolyLine *boundary2_pt =
@@ -350,6 +345,16 @@ Trace_file.open(filename);
 
 oomph_info << "Number of equations: "
         << assign_eqn_numbers() << '\n';
+
+// Clean up memory - this may create dangling pointers but we don't need to
+// So move the relevant pointers to private data members and clean this in
+// destructor
+delete outer_boundary_pt;
+delete outer_boundary_ellipse_pt;
+delete outer_curvilinear_boundary_pt[0];
+delete outer_curvilinear_boundary_pt[1];
+delete inner_open_boundaries_pt[0];
+delete boundary2_pt;
 }
 
 
@@ -374,6 +379,79 @@ el_pt->nu_pt() = &TestSoln::nu;
 
 // Apply Dirichlet boundary conditions (projection ignores
 apply_boundary_conditions();
+}
+
+
+template<class ELEMENT>
+void UnstructuredFvKProblem<ELEMENT>::pin_displacement_at_centre_node()
+{
+// Pin the node that is at the centre in the domain!
+// Get the num of nods on internal_boundary 0
+unsigned num_int_nod=Bulk_mesh_pt->nboundary_node(2);
+bool found_centre_node = false;
+for (unsigned inod=0;inod<num_int_nod;inod++)
+{
+ // Get node point
+ Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(2,inod);
+ // If the node is on the other internal boundary too
+ if(nod_pt->x(0)==0.0 && nod_pt->x(1) == 0.0)
+ {
+  found_centre_node = true;
+  // Be verbose and let everyone know we have found the centre
+  oomph_info<<"Found centre point\n";
+  oomph_info<<"x = ("<<nod_pt->x(0)<<" "<<nod_pt->x(1)<<") \n";
+  // Pin it! It's the centre of the domain!
+  nod_pt->pin(0);
+  nod_pt->set_value(0,0.0);
+  nod_pt->pin(1);
+  nod_pt->set_value(1,0.0);
+  nod_pt->pin(2);
+  nod_pt->set_value(2,0.0);
+  return;
+ }
+}
+// This is bad
+if(!found_centre_node)
+ {
+    throw OomphLibError(
+     "I couldn't find the centre node to pin it! Exiting.",
+     "UnstructuredFvKProblem::pin_displacement_on_centre_node(...)",
+     OOMPH_EXCEPTION_LOCATION);
+ }
+}
+
+template<class ELEMENT>
+void UnstructuredFvKProblem<ELEMENT>::pin_rotation_on_edge_node()
+{
+// Pin the node that is at the centre in the domain!
+// Get the num of nods on internal_boundary 0
+unsigned num_int_nod=Bulk_mesh_pt->nboundary_node(1);
+bool found_edge_node = false;
+for (unsigned inod=0;inod<num_int_nod;inod++)
+{
+ // Get node point
+ Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(1,inod);
+ // If the node is on the internal boundary too
+ if(nod_pt->is_on_boundary(2))
+ {
+  found_edge_node = true;
+  // Be verbose and let everyone know we have found the centre
+  oomph_info<<"Found edge point\n";
+  oomph_info<<"x = ("<<nod_pt->x(0)<<" "<<nod_pt->x(1)<<") \n";
+  // Pin the theta derivative (i.e y derivative at x = 1, y =0)
+  nod_pt->pin(2);
+  nod_pt->set_value(2,0.0);
+  return;
+ }
+}
+// This is bad
+if(!found_edge_node)
+ {
+    throw OomphLibError(
+     "I couldn't find the edge node to pin it! Exiting.",
+     "UnstructuredFvKProblem::pin_rotation_on_edge_node(...)",
+     OOMPH_EXCEPTION_LOCATION);
+ }
 }
 
 //==start_of_apply_bc=====================================================
@@ -424,6 +502,13 @@ for (unsigned inod=0;inod<num_nod;inod++)
  }
  }//Loop nodes
 } // end loop over boundaries 
+
+if( TestSoln::boundary_case == TestSoln::Free)
+ {
+  // Pin the displacements
+  pin_displacement_at_centre_node();
+//  pin_rotation_on_edge_node();
+ }
 } // end set bc
 /// A function that upgrades straight sided elements to be curved. This involves
 // Setting up the parametric boundary, F(s) and the first derivative F'(s)
@@ -593,15 +678,6 @@ rotate_edge_degrees_of_freedom( Mesh* const &bulk_mesh_pt)
  }
 }// end create traction elements
 
-//==start_of_set_prescribed_traction_pt===================================
-/// Set pointer to prescribed traction function for all elements in the 
-/// surface mesh
-//========================================================================
-template<class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::set_prescribed_traction_pt()
-{
-}// end of set prescribed flux pt
-
 //==start_of_doc_solution=================================================
 /// Doc the solution
 //========================================================================
@@ -702,29 +778,6 @@ some_file.close();
 Doc_info.number()++;
 
 } // end of doc
-
-//============start_of_delete_flux_elements==============================
-/// Delete Poisson Flux Elements and wipe the surface mesh
-//=======================================================================
-template<class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>
-::delete_traction_elements(Mesh* const &surface_mesh_pt)
-{
-// How many surface elements are in the surface mesh
-unsigned n_element = surface_mesh_pt->nelement();
-
-// Loop over the surface elements
-for(unsigned e=0;e<n_element;e++)
-{
-// Kill surface element
-delete surface_mesh_pt->element_pt(e);
-}
-
-// Wipe the mesh
-surface_mesh_pt->flush_element_and_node_storage();
-
-} // end of delete_flux_elements
-
 
 //=======start_of_main========================================
 ///Driver code for demo of inline triangle mesh generation
