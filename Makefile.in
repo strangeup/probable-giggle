@@ -89,7 +89,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 noinst_PROGRAMS = rectangular_sheet_kpb$(EXEEXT) \
-	circular_disc_kpb$(EXEEXT)
+	circular_disc_kpb$(EXEEXT) semi_annular_kpb$(EXEEXT)
 subdir = user_drivers/probable-giggle
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/configure.ac_scripts/automake_init_command_file \
@@ -117,6 +117,10 @@ am_rectangular_sheet_kpb_OBJECTS =  \
 	rectangular_sheet_kirchhoff_plate_bending.$(OBJEXT)
 rectangular_sheet_kpb_OBJECTS = $(am_rectangular_sheet_kpb_OBJECTS)
 rectangular_sheet_kpb_DEPENDENCIES = $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
+am_semi_annular_kpb_OBJECTS = semi_annular_plate_pinned.$(OBJEXT)
+semi_annular_kpb_OBJECTS = $(am_semi_annular_kpb_OBJECTS)
+semi_annular_kpb_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
@@ -152,9 +156,9 @@ am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
 SOURCES = $(circular_disc_kpb_SOURCES) \
-	$(rectangular_sheet_kpb_SOURCES)
+	$(rectangular_sheet_kpb_SOURCES) $(semi_annular_kpb_SOURCES)
 DIST_SOURCES = $(circular_disc_kpb_SOURCES) \
-	$(rectangular_sheet_kpb_SOURCES)
+	$(rectangular_sheet_kpb_SOURCES) $(semi_annular_kpb_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -231,7 +235,7 @@ AMTAR = @AMTAR@
 # Automake will replace the variable @includedir@ with the actual
 # include directory.
 AM_CPPFLAGS = @AM_CPPFLAGS@ -I@includedir@ -I@includedir@ \
-	-I$(pathtoeigen) -I$(pathtospectra) -Wall -g -DRANGE_CHECK \
+	-I$(pathtoeigen) -I$(pathtospectra) -Wall #-g #-DRANGE_CHECK \
 	-DPARANOID
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
@@ -410,12 +414,18 @@ rectangular_sheet_kpb_SOURCES = \
 circular_disc_kpb_SOURCES = \
  circular_disc_uniform_pressure_three_pins.cc
 
+semi_annular_kpb_SOURCES = \
+ semi_annular_plate_pinned.cc
+
 
 #---------------------------------------------------------------------------
 rectangular_sheet_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
  -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
 
 circular_disc_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
+ -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
+
+semi_annular_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
  -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
 
 all: all-am
@@ -470,6 +480,10 @@ rectangular_sheet_kpb$(EXEEXT): $(rectangular_sheet_kpb_OBJECTS) $(rectangular_s
 	@rm -f rectangular_sheet_kpb$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(rectangular_sheet_kpb_OBJECTS) $(rectangular_sheet_kpb_LDADD) $(LIBS)
 
+semi_annular_kpb$(EXEEXT): $(semi_annular_kpb_OBJECTS) $(semi_annular_kpb_DEPENDENCIES) $(EXTRA_semi_annular_kpb_DEPENDENCIES) 
+	@rm -f semi_annular_kpb$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(semi_annular_kpb_OBJECTS) $(semi_annular_kpb_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -478,6 +492,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/circular_disc_uniform_pressure_three_pins.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rectangular_sheet_kirchhoff_plate_bending.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/semi_annular_plate_pinned.Po@am__quote@
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

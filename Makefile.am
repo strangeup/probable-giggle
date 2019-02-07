@@ -1,6 +1,6 @@
 # Name of executables: The prefix "noinst" means the executables don't
 # have to be installed anywhere.
-noinst_PROGRAMS =  rectangular_sheet_kpb circular_disc_kpb
+noinst_PROGRAMS =  rectangular_sheet_kpb circular_disc_kpb semi_annular_kpb
 include $(top_srcdir)/config/makefile_templates/demo_drivers
 #---------------------------------------------------------------------------
 
@@ -11,11 +11,18 @@ rectangular_sheet_kpb_SOURCES = \
 circular_disc_kpb_SOURCES = \
  circular_disc_uniform_pressure_three_pins.cc
 
+semi_annular_kpb_SOURCES = \
+ semi_annular_plate_pinned.cc
+
+
 #---------------------------------------------------------------------------
 rectangular_sheet_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
  -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
 
 circular_disc_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
+ -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
+
+semi_annular_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
  -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
 
 # Local sources that Jack's own code depends on: This code also uses
@@ -39,4 +46,4 @@ circular_disc_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
 # Automake will replace the variable @includedir@ with the actual
 # include directory.
 
-AM_CPPFLAGS += -I@includedir@ -I$(pathtoeigen) -I$(pathtospectra) -Wall -g -DRANGE_CHECK -DPARANOID
+AM_CPPFLAGS += -I@includedir@ -I$(pathtoeigen) -I$(pathtospectra) -Wall #-g #-DRANGE_CHECK -DPARANOID
