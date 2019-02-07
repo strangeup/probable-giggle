@@ -64,19 +64,10 @@ CurvilineCircleTop parametric_curve_bottom(inner_radius,true);
 void get_pressure(const Vector<double>& xi, double& pressure)
 {
  const double x=xi[0],y=xi[1];
- const double C2=2, theta =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
+ const double theta =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
  // Pressure
-// pressure = 0.0;//4.0*std::exp(-atan2(-x,y)+Pi/2) * std::pow(x*x+y*y,-1.5) ;
-//   pressure = C2*(std::exp(-sqrt(11)*theta)*(756. - 7425.*r + 8400.*r*r -
-// 4320.*pow(r,4))/(70.*pow(r,3)));
-
-double (*Power)(double base, int exponent) = &std::pow;
-// pressure = (-3*(-252 + 2475*r - 2800*Power(r,2) + 50400*Power(r,4)))/
-//    (1225.*std::exp(sqrt(11)*theta)*Power(r,3));
-
-pressure = (756 - 15*r*(495 - 560*r + 288*Power(r,3)))/
-   (70.*std::exp(sqrt(11)*theta)*Power(r,3));
-
+ pressure = (756 - 15*r*(495 - 560*r + 288*pow(r,3)))/
+    (70.*std::exp(sqrt(11)*theta)*pow(r,3));
 }
 
 // The normal and tangential directions.
@@ -118,42 +109,31 @@ void get_normal_and_tangent(const Vector<double>& x, Vector<double>& t,
  void get_exact_polar_w(const Vector<double>& ri, Vector<double>& w)
  {
   // Solution : w =  r exp[-\theta]
-//  const double x=xi[0],y=xi[1];
-//  const double C2=2, phi =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
   const double phi = ri[1], r = ri[0];
   using namespace std;
-  w[0] = -/*C2**/ exp(-sqrt(11)*phi) *r*(-21. + 180.*r - 140.*r*r +24.*pow(r,4))/280.;
-  w[1] = -/*C2**/ exp(-sqrt(11)*phi) *(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
-  w[2] =  /*C2**/r*exp(-sqrt(11)*phi)*sqrt(11)*(-21 + 180*r - 140*r*r + 24*pow(r,4))/280.;
-  w[3] = -/*C2**/ exp(-sqrt(11)*phi) *(360 - 840*r +480*pow(r,3))/280.;
-  w[4] =  /*C2**/ exp(-sqrt(11)*phi)*sqrt(11)*(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
-  w[5] = -11/**C2*/*exp(-sqrt(11)*phi)*r*(-21 + 180*r - 140*r*r +24*pow(r,4))/(280.);
+  w[0] = -exp(-sqrt(11)*phi) *r*(-21. + 180.*r - 140.*r*r +24.*pow(r,4))/280.;
+  w[1] = -exp(-sqrt(11)*phi) *(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
+  w[2] =  r*exp(-sqrt(11)*phi)*sqrt(11)*(-21 + 180*r - 140*r*r + 24*pow(r,4))/280.;
+  w[3] = -exp(-sqrt(11)*phi) *(360 - 840*r +480*pow(r,3))/280.;
+  w[4] =  exp(-sqrt(11)*phi)*sqrt(11)*(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
+  w[5] = -11*exp(-sqrt(11)*phi)*r*(-21 + 180*r - 140*r*r +24*pow(r,4))/(280.);
  }
 
 
 //Exact solution for constant pressure, circular domain and resting boundary conditions
 void get_exact_w(const Vector<double>& xi, Vector<double>& w)
 {
- // Solution : w =  r exp[-\theta]
- // Solution : w =  r exp[-\theta]
  const double x=xi[0],y=xi[1];
-// const double C2=1, theta =(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)), r = sqrt(x*x+y*y);
  Vector<double> ri (2);
  ri[1]=(x<0 ? atan2(-x,y)+Pi/2 : atan2(y,x)); 
  ri[0] = sqrt(x*x+y*y);
  w.resize(6);
  get_exact_polar_w(ri,w);
- //double (*Power)(double base, int exponent) = &std::pow;
-
-// w[0]= std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
-// w[0] = -(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//   (280.);
 }
 
 //Exact solution for constant pressure, circular domain and resting boundary conditions
 void get_exact_w_on_straight_edge(const double x, Vector<double>& w, const unsigned& ibound)
 {
- double (*Power)(double base, int exponent) = &std::pow;
  w.resize(6);
  if(ibound == 2)
    {   
@@ -185,78 +165,6 @@ void get_exact_w_on_straight_edge(const double x, Vector<double>& w, const unsig
   }
  // The last second derivative is not the second y derivative, so remove it
  w.pop_back();
- // Solution : w =  r exp[-\theta]
-// if(ibound == 2)
-//   {
-//    const double theta = Pi, r = -x;
-// //   w[0]= std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
-// //   // X derivative
-// //   w[1]=-std::exp(-sqrt(11)*theta)*(3./20. - 2*(9.*r)/7. + 3*r*r - 5*(6*pow(r,4))/35.);
-// //   // Y derivative (in -theta direction)
-// //   w[2]= -sqrt(11)*std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
-// //   // Second X derivative
-// //   w[3]= std::exp(-sqrt(11)*theta)*(- 2*(9.)/7. + 6*r - 20*(6*pow(r,3))/35.);
-// //   // X Y derivative
-// //   w[4]=-sqrt(11)*std::exp(-sqrt(11)*theta)*(3./20. - 2*(9.*r)/7. + 3*r*r - 5*(6*pow(r,4))/35.);
-//    //   // Second Y derivative not needed 
-//    
-//    // The solution
-//    w[0] = -(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // X derivative (in -r direction)
-//    w[1] =  ((-21 + 2*180*r - 3*140*Power(r,2) + 5*24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // Y derivativ (in -theta direction)
-//    w[2] = -sqrt(11)*(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // Second X derivative
-//    w[3] = -((2*180 - 6*140*Power(r,1) + 12*24*Power(r,3)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // X Y derivative
-//    w[4] = sqrt(11)*((-21 + 2*180*r - 3*140*Power(r,2) + 5*24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // Second Y derivative not needed 
-//   }
-// else if (ibound ==3) 
-//    {
-//    const double theta = 0, r = x;
-//   // w[0]= std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
-//   // // X derivative
-//   // w[1]= std::exp(-sqrt(11)*theta)*(3./20. - 2*(9.*r)/7. + 3*r*r - 5*(6*pow(r,4))/35.);
-//   // // Y derivative (in theta direction)
-//   // w[2]= -sqrt(11)*std::exp(-sqrt(11)*theta)*r*(3./20. - (9.*r)/7. + r*r - (6*pow(r,4))/35.);
-//   // // Second X derivative
-//   // w[3]= std::exp(-sqrt(11)*theta)*(- 2*(9.)/7. + 6*r - 20*(6*pow(r,3))/35.);
-//   // // X Y derivative
-//   // w[4]=-sqrt(11)*std::exp(-sqrt(11)*theta)*(3./20. - 2*(9.*r)/7. + 3*r*r - 5*(6*pow(r,4))/35.);
-//   // // Second Y derivative not needed 
-//   //
-//   // The solution
-//    w[0] = -(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // X derivative
-//    w[1] = -((-21 + 2*180*r - 3*140*Power(r,2) + 5*24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // Y derivativ (in -theta direction)
-//    w[2] =  sqrt(11)*(r*(-21 + 180*r - 140*Power(r,2) + 24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // Second X derivative
-//    w[3] = -((2*180 - 6*140*Power(r,1) + 12*24*Power(r,3)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // X Y derivative
-//    w[4] = sqrt(11)*((-21 + 2*180*r - 3*140*Power(r,2) + 5*24*Power(r,4)))*std::exp(-sqrt(11)*theta)/
-//      (280.);
-//    // Second Y derivative not needed 
-//    //
-//  w[0] = - exp(-sqrt(11)*theta) *r*(-21. + 180.*r - 140.*r*r +24.*pow(r,4))/280.;
-//  w[1] = - exp(-sqrt(11)*theta) *(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
-//  w[2] =  r*exp(-sqrt(11)*theta)*sqrt(11)*(-21 + 180*r - 140*r*r + 24*pow(r,4))/280.;
-//  w[3] = - exp(-sqrt(11)*theta) *(360 - 840*r +480*pow(r,3))/280.;
-//  w[4] =   exp(-sqrt(11)*theta)*sqrt(11)*(-21 + 360*r - 420*r*r +120*pow(r,4))/280.;
-//  w[5] = -11*exp(-sqrt(11)*theta)*r*(-21 + 180*r - 140*r*r +24*pow(r,4))/(280.);
-//   }
-// else
-//  {std::cerr<<"AGGGH"<<std::endl; exit(-1);}
 }
 
 }
@@ -556,6 +464,29 @@ oomph_info << "Number of equations: "
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
 {   
+// Complete the build of all elements so they are fully functional
+unsigned n_element = Bulk_mesh_pt->nelement();
+for(unsigned e=0;e<n_element;e++)
+{
+// Upcast from GeneralisedElement to the present element
+ELEMENT* el_pt = dynamic_cast<ELEMENT*>(Bulk_mesh_pt->element_pt(e));
+
+//Set the pressure function pointers and the physical constants
+el_pt->pressure_fct_pt() = &TestSoln::get_pressure;
+el_pt->nu_pt() = &TestSoln::nu;
+}
+
+// Re-apply Dirichlet boundary conditions (projection ignores
+// boundary conditions!)
+apply_boundary_conditions();
+}
+
+//==start_of_apply_bc=====================================================
+/// Helper function to apply boundary conditions
+//========================================================================
+template<class ELEMENT>
+void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
+{
 unsigned nbound = Straight_boundary1+1;
 // Set the boundary conditions for problem: All nodes are
 // free by default -- just pin the ones that have Dirichlet conditions
@@ -575,7 +506,6 @@ for (unsigned inod=0;inod<num_nod;inod++)
  x[0]=nod_pt->x(0);
  x[1]=nod_pt->x(1);
  oomph_info << "Pinning node at x="<< x <<"\n";
-// TestSoln::get_exact_radial_w(x,w);
  TestSoln::get_exact_w_on_straight_edge(x[0],w, ibound);
  oomph_info << "To values x="<< w <<"\n";
 // // Pin unknown values (everything except for the second normal derivative)
@@ -584,70 +514,8 @@ for (unsigned inod=0;inod<num_nod;inod++)
    nod_pt->pin(i);
    nod_pt->set_value(i,w[i]);
   }
-//
-// nod_pt->pin(0);
-// nod_pt->set_value(0,w[0]);
-// nod_pt->pin(2);
-// nod_pt->set_value(2,w[1]);
-// nod_pt->pin(1);
-// nod_pt->set_value(1,w[2]);
-// nod_pt->pin(5);
-// nod_pt->set_value(5,w[3]);
-// nod_pt->pin(4);
-// nod_pt->set_value(4,w[4]);
-//  nod_pt->pin(3);
-//  nod_pt->set_value(3,w[5]);
  }
 } // end loop over boundaries 
-
-
-// Complete the build of all elements so they are fully functional
-unsigned n_element = Bulk_mesh_pt->nelement();
-for(unsigned e=0;e<n_element;e++)
-{
-// Upcast from GeneralisedElement to the present element
-ELEMENT* el_pt = dynamic_cast<ELEMENT*>(Bulk_mesh_pt->element_pt(e));
-
-//Set the pressure function pointers and the physical constants
-el_pt->pressure_fct_pt() = &TestSoln::get_pressure;
-el_pt->nu_pt() = &TestSoln::nu;
-}
-
-// Loop over flux elements to pass pointer to prescribed traction function
-
-/// Set pointer to prescribed traction function for traction elements
-//set_prescribed_traction_pt();
-
-// Re-apply Dirichlet boundary conditions (projection ignores
-// boundary conditions!)
-apply_boundary_conditions();
-}
-
-//==start_of_apply_bc=====================================================
-/// Helper function to apply boundary conditions
-//========================================================================
-template<class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
-{
-
-// Loop over all boundary nodes
-//Just loop over outer boundary conditions
-unsigned nbound = Outer_boundary0 + 1;
-
-for(unsigned ibound=0;ibound<nbound;ibound++)
-{
-unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
-for (unsigned inod=0;inod<num_nod;inod++)
-{
- // Get node
- Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
- 
- // Extract nodal coordinates from node:
- Vector<double> x(2);
- x[0]=nod_pt->x(0);
- x[1]=nod_pt->x(1);
-}
-} 
 
 } // end set bc
 
@@ -721,8 +589,6 @@ upgrade_edge_elements_to_curve(const unsigned &b, Mesh* const &bulk_mesh_pt)
    // Initialise s_ubar s_obar
    double s_ubar, s_obar;
 
-   std::cout<<verts<<"\n";
-   std::cout<<index_of_interior_node<<"\n";
    // s at the next (cyclic) node after interior
    s_ubar = parametric_curve_pt->get_zeta(xn[(index_of_interior_node+1) % 3]);
    // s at the previous (cyclic) node before interior
