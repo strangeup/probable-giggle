@@ -5,7 +5,7 @@ OOMPH_ROOT_DIR=$(make -s --no-print-directory print-top_builddir)
 
 
 #Set the number of tests to be checked
-NUM_TESTS=2
+NUM_TESTS=3
 
 
 # Setup validation directory
@@ -58,6 +58,24 @@ else
   rectangular_sheet_kpb_results_2.dat  >> validation.log
 fi
 
+../circular_disc_kpb --validation > OUTPUT_circular_disc_kpb
+echo "done"
+echo " " >> validation.log
+echo "Linear Bending validation" >> validation.log
+echo "------------------------------------------" >> validation.log
+echo " " >> validation.log
+echo "Validation directory: " >> validation.log
+echo " " >> validation.log
+echo "  " `pwd` >> validation.log
+echo " " >> validation.log
+cat RESLT/trace.dat > circular_disc_kpb_results_1.dat
+
+if test "$1" = "no_fpdiff"; then
+  echo "dummy [OK] -- Can't run fpdiff.py because we don't have python or validata" >> validation.log
+else
+  ../../../bin/fpdiff.py ../validata/circular_disc_kpb_result_1.dat.gz   \
+  circular_disc_kpb_results_1.dat  >> validation.log
+fi
 # Append output to global validation log file
 #--------------------------------------------
 cat validation.log >> ../../../../validation.log

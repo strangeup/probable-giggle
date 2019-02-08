@@ -134,6 +134,7 @@ switch (boundary_case)
    w[0]= (p_mag*r2*(-9*r2 + 2*pow(r2,2) + 
        (12*(2 + nu))/(1 + nu)))/1152.;
    }
+  break;
   case FreeSinusoidalLoad:
    {
    // Define r and theta
@@ -201,7 +202,13 @@ void actions_after_newton_solve()
 /// Empty as the boundary conditions stay fixed
 void actions_before_newton_solve()
 {
-apply_boundary_conditions();
+ // This will also reapply boundary conditions
+ complete_problem_setup();
+ // Reassign the equation numbers
+ oomph_info << "Number of equations: "
+            << this->assign_eqn_numbers() << '\n';  
+ // Document the number of elements in the mesh
+ oomph_info << "Number of elements: " << Bulk_mesh_pt->nelement() << std::endl;
 }
 
 /// Doc the solution
@@ -219,6 +226,8 @@ return dynamic_cast<TriangleMesh<ELEMENT>*> (Problem::mesh_pt());
 DocInfo Doc_info;
 
 private:
+Node* Centre_node_pt;
+Node* Edge_node_pt;
 
 
 /// Helper function to apply boundary conditions
@@ -263,6 +272,22 @@ void pin_displacement_at_centre_node();
 /// Helper to pin the azimuthal dof on the edge
 void pin_rotation_on_edge_node();
 
+// Unpin all of the dofs
+void unpin_all_dofs()
+ {
+  // Get total number of nodes
+  unsigned n_node  =Bulk_mesh_pt->nnode();
+  // Loop over nodes
+  for(unsigned inod=0;inod<n_node;++inod)
+   {
+    // Get node
+    Node* nod_pt=Bulk_mesh_pt->node_pt(inod);
+    const unsigned ndof_type=6;
+    for(unsigned i=0;i<ndof_type;++i)
+     {nod_pt->unpin(i);}
+   }
+ }
+
 /// Pointer to "bulk" mesh
 TriangleMesh<ELEMENT>* Bulk_mesh_pt;
 
@@ -274,7 +299,7 @@ Mesh* Surface_mesh_pt;
 
 template<class ELEMENT>
 UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
-:
+: Centre_node_pt(0), Edge_node_pt(0),
 Element_area(element_area)
 {
 Vector<double> zeta(1);
@@ -415,6 +440,7 @@ el_pt->nu_pt() = &TestSoln::nu;
 
 // Apply Dirichlet boundary conditions (projection ignores
 apply_boundary_conditions();
+
 }
 
 
@@ -496,6 +522,8 @@ if(!found_edge_node)
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
 {
+// First reset any boundary conditions
+unpin_all_dofs();
 unsigned nbound = Outer_boundary1 + 1;
 // Set the boundary conditions for problem: All nodes are
 // free by default -- just pin the ones that have Dirichlet conditions
@@ -538,6 +566,21 @@ for (unsigned inod=0;inod<num_nod;inod++)
  }
  }//Loop nodes
 } // end loop over boundaries 
+
+// Now loop over nodes on internal boundary
+const unsigned ibound = 2;
+unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
+for (unsigned inod=0;inod<num_nod;inod++)
+{
+ // Get nod
+ Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
+ // Store pointer to the centre
+ if(nod_pt->x(0) ==0 && nod_pt->x(1)==0)
+  {Centre_node_pt = nod_pt;}
+ // Store pointer to the edge
+ if(nod_pt->is_on_boundary(1))
+  {Edge_node_pt =  nod_pt;}
+}//Loop nodes
 
 if( TestSoln::boundary_case == TestSoln::Free || TestSoln::boundary_case == TestSoln::FreeSinusoidalLoad )
  {
@@ -792,7 +835,16 @@ for (unsigned r = 0; r < n_region; r++)
  // Doc L2 error and norm of solution
  oomph_info << "L2 Norm of computed solution: " << sqrt(dummy_error)<< std::endl;
  
- Trace_file << TestSoln::p_mag << " " << "\n ";
+ // Output depends on boundary case
+ switch(TestSoln::boundary_case)
+  {
+  case TestSoln::Resting: case TestSoln::Clamped:
+   Trace_file << TestSoln::p_mag << " " << Centre_node_pt->value(0) << "\n";
+  break;
+  default:
+   Trace_file << TestSoln::p_mag << " " << Edge_node_pt->value(0) << "\n";
+  break;
+  }
 
 // Doc error and return of the square of the L2 error
 //---------------------------------------------------
@@ -853,6 +905,8 @@ int main(int argc, char **argv)
  // The `usage' flag
  CommandLineArgs::specify_command_line_flag("--usage");
 
+ CommandLineArgs::specify_command_line_flag("--validation");
+
  // Boundary case as an unsigned
  // Flag for bad user input
  bool invalid_input=false;
@@ -899,6 +953,45 @@ int main(int argc, char **argv)
   oomph_info<<"                      2 - free, quadratic loading\n";
   oomph_info<<"                      3 - free, sinusoidal loading\n";
                  
+  // Terminate here
+  return(0);
+ }
+
+ // If we are asked to validate
+ if(CommandLineArgs::command_line_flag_has_been_set("--validation"))
+ {
+  oomph_info << "Linear Kirchhoff Plate Bending (Tri Mesh) Validation\n"<<
+   "-------------------------------------------------------------------------\n";
+  // Test parameters
+  TestSoln::p_mag = 1.0;
+  element_area = 1.0;
+  TestSoln::nu = 1./3.;
+
+  // Use a 3rd order curved Bell element, we don't need to upgrade it.
+  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,5> > problem(element_area);
+  problem.max_newton_iterations()=1;
+
+  // We have defined 12 cases
+  const unsigned number_of_cases = 4;
+  for(unsigned icase=0; icase<number_of_cases;++icase)
+   {
+   // Cast boundary case
+   TestSoln::boundary_case=(TestSoln::Boundary_case)icase;
+   // Newton Solve
+   problem.newton_solve();
+ 
+   //Output solution
+   problem.doc_solution();
+
+   oomph_info << std::endl;
+   oomph_info << "---------------------------------------------" << std::endl;
+   oomph_info << "Pcos (" << TestSoln::p_mag << ")" << std::endl;
+   oomph_info << "Case (" << TestSoln::boundary_case << ")" << std::endl;
+   oomph_info << "Poisson ratio (" << TestSoln::nu << ")" << std::endl;
+   oomph_info << "Solution number (" <<problem.Doc_info.number()-1 << ")" << std::endl;
+   oomph_info << "---------------------------------------------" << std::endl;
+   oomph_info << std::endl;
+   }
   // Terminate here
   return(0);
  }
