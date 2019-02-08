@@ -52,9 +52,9 @@ double B = 1.0;
 // The coupling of the stretching energy
 double eta = 0;
 double p_mag = 1; 
-double nu = 0.3;
+double nu = 1/3.;
 
-enum Boundary_case {Resting = 0,  Clamped = 1, Free  = 2 };
+enum Boundary_case {Resting = 0,  Clamped = 1, Free  = 2, FreeSinusoidalLoad =3 };
 Boundary_case boundary_case = Resting;
 
 /*                     PARAMETRIC BOUNDARY DEFINITIONS                        */
@@ -65,15 +65,27 @@ CurvilineCircleBottom parametric_curve_bottom;
 // Assigns the value of pressure depending on the position (x,y)
 void get_pressure(const Vector<double>& x, double& pressure)
 {
- // Uniform Pressure
- if(boundary_case != Free )
-  {
+ switch (boundary_case)
+  {  
+  // Uniform Pressure
+  case Resting: case Clamped:
    pressure = p_mag;
-  }
- else // if (boundary_case ==  Free )
-  { 
+   break;
+  case Free:
+   { 
    double r2 = x[0]*x[0]+x[1]*x[1];
    pressure = p_mag*(r2-0.5);
+   break;
+   }
+  case FreeSinusoidalLoad: 
+   { 
+   const double theta = atan2(x[1],x[0]);
+   pressure = p_mag*sin(3*theta);
+   break;
+   }
+  default:
+   /* Scream */
+  break;
   }
 }
 
@@ -121,6 +133,30 @@ switch (boundary_case)
    // Solved by DGR 2019 (almost certainly exists elsewhere) 
    w[0]= (p_mag*r2*(-9*r2 + 2*pow(r2,2) + 
        (12*(2 + nu))/(1 + nu)))/1152.;
+   }
+  case FreeSinusoidalLoad:
+   {
+   // Define r and theta
+   const double r = sqrt(x[0]*x[0] +x[1]*x[1]), theta = atan2(x[1],x[0]);
+   // Alias
+   const double& Nu = nu;
+   double (*Power)(double base, int exponent) = &std::pow;
+   double (*Sin)(double arg) = &std::sin;
+   
+   // The solution for k =3 nu=?
+   w[0] = p_mag*(Power(r,3)*(-202 + 2*Nu*(55 + 18*Nu) - 72*(-1 + Nu)*(3 + Nu)*r + 
+       3*(-1 + Nu)*(23 + 12*Nu)*Power(r,2))*Sin(3*theta))/
+   (2520.*(-1 + Nu)*(3 + Nu));
+   /* 
+   double (*Cos)(double arg) = &std::cos;
+   // r - theta derivatives for k=3 nu = 1/3
+   w[0] = (Power(r,3)*(242 + 3*r*(-80 + 27*r))*Sin(3*theta))/8400.; 
+   w[1] = (Power(r,2)*(242 - 320*r + 135*Power(r,2))*Sin(3*theta))/2800.;
+   w[2] = (Power(r,3)*(242 + 3*r*(-80 + 27*r))*Cos(3*theta))/2800.;
+   w[3] = (r*(121 - 240*r + 135*Power(r,2))*Sin(3*theta))/700.;
+   w[4] = (3*Power(r,2)*(242 - 320*r + 135*Power(r,2))*Cos(3*theta))/2800;
+   w[5] = (-3*Power(r,3)*(242 + 3*r*(-80 + 27*r))*Sin(3*theta))/2800.;
+   */
    }
   break;
   default:
@@ -503,7 +539,7 @@ for (unsigned inod=0;inod<num_nod;inod++)
  }//Loop nodes
 } // end loop over boundaries 
 
-if( TestSoln::boundary_case == TestSoln::Free)
+if( TestSoln::boundary_case == TestSoln::Free || TestSoln::boundary_case == TestSoln::FreeSinusoidalLoad )
  {
   // Pin the displacements
   pin_displacement_at_centre_node();
@@ -754,7 +790,7 @@ for (unsigned r = 0; r < n_region; r++)
  some_file.close();
  
  // Doc L2 error and norm of solution
- oomph_info << "Norm of computed solution: " << sqrt(dummy_error)<< std::endl;
+ oomph_info << "L2 Norm of computed solution: " << sqrt(dummy_error)<< std::endl;
  
  Trace_file << TestSoln::p_mag << " " << "\n ";
 
@@ -827,7 +863,7 @@ int main(int argc, char **argv)
  CommandLineArgs::parse_and_assign(); 
 
  // Assign the boundary case
- if (boundary_case_num>=0 && boundary_case_num <=2)
+ if (boundary_case_num>=0 && boundary_case_num <=3)
   {
   // Cast int to enum
   TestSoln::boundary_case=(TestSoln::Boundary_case)(boundary_case_num);
@@ -861,13 +897,14 @@ int main(int argc, char **argv)
   oomph_info<<"                      0 - resting, uniform pressure\n";
   oomph_info<<"                      1 - clamped, uniform pressure\n";
   oomph_info<<"                      2 - free, quadratic loading\n";
+  oomph_info<<"                      3 - free, sinusoidal loading\n";
                  
   // Terminate here
   return(0);
  }
 
  // Problem instance
- UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,3> >problem(element_area);
+ UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,5> >problem(element_area);
  problem.max_newton_iterations()=1;
  oomph_info<<"Solving for p=" << TestSoln::p_mag<<"\n";
  problem.newton_solve();
