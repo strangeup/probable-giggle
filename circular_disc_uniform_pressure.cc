@@ -168,6 +168,9 @@ switch (boundary_case)
   break;
  }
 }
+
+/// Bool for resolution of output
+bool High_resolution = false;
 }
 
 ///////////////////////////////////////////////////////////
@@ -777,8 +780,11 @@ some_file << "TEXT X = 22, Y = 92, CS=FRAME T = \""
        << comment << "\"\n";
 some_file.close();
 
-// Number of plot points
-npts = 6;
+// Output with very high resolution
+if(TestSoln::High_resolution)
+ {npts = 50;}
+else
+ {npts = 6;}
 
 sprintf(filename,"RESLT/soln%i-%f.dat",Doc_info.number(),Element_area);
 some_file.open(filename);
@@ -880,6 +886,8 @@ int main(int argc, char **argv)
 
  // Define possible command line arguments and parse the ones that
  // were actually specified
+ // Output solutions in high res
+ CommandLineArgs::specify_command_line_flag("--high_resolution");
 
  // Validation?
  CommandLineArgs::specify_command_line_flag("--validation");
@@ -930,6 +938,10 @@ int main(int argc, char **argv)
 
  // Doc what has actually been specified on the command line
  CommandLineArgs::doc_specified_flags();
+
+ // Output in high resolution
+ TestSoln::High_resolution = CommandLineArgs::
+   command_line_flag_has_been_set("--high_resolution");
 
  // Print usage 
  if(CommandLineArgs::command_line_flag_has_been_set("--usage") || invalid_input)
