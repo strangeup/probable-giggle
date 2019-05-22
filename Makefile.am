@@ -52,4 +52,4 @@ circular_disc_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
 # Automake will replace the variable @includedir@ with the actual
 # include directory.
 
-AM_CPPFLAGS += -I@includedir@ -I$(pathtoeigen) -I$(pathtospectra) -Wall # -g -DRANGE_CHECK -DPARANOID
+AM_CPPFLAGS += -I@includedir@ -I$(pathtoeigen) -I$(pathtospectra) -Wall  -g -DRANGE_CHECK -DPARANOID

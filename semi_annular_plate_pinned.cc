@@ -677,17 +677,17 @@ the mesh has returned an inverted element (less likely)",
     }
 
    // Upgrade it
-   bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
-    parametric_curve_pt);     
+   bulk_el_pt->upgrade_element_to_curved(edge,s_ubar,s_obar,
+    parametric_curve_pt,5);     
     
-   // Get vertices for debugging
-   Vector<Vector<double> > lverts(3,Vector<double>(2,0.0));
-   lverts[0][0]=1.0;
-   lverts[1][1]=1.0;
-   Vector<Vector<double> > fkverts(3,Vector<double>(2,0.0));
-   bulk_el_pt->get_coordinate_x(lverts[0],fkverts[0]);
-   bulk_el_pt->get_coordinate_x(lverts[1],fkverts[1]);
-   bulk_el_pt->get_coordinate_x(lverts[2],fkverts[2]);
+  // // Get vertices for debugging
+  // Vector<Vector<double> > lverts(3,Vector<double>(2,0.0));
+  // lverts[0][0]=1.0;
+  // lverts[1][1]=1.0;
+  // Vector<Vector<double> > fkverts(3,Vector<double>(2,0.0));
+  // bulk_el_pt->interpolated_x(lverts[0],fkverts[0]);
+  // bulk_el_pt->interpolated_x(lverts[1],fkverts[1]);
+  // bulk_el_pt->interpolated_x(lverts[2],fkverts[2]);
 
   }
 }// end upgrade elements

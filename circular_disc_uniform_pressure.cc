@@ -707,8 +707,8 @@ the mesh has returned an inverted element (less likely)",
     }
 
    // Upgrade it
-   bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
-    parametric_curve_pt);     
+   bulk_el_pt->upgrade_element_to_curved(edge,s_ubar,s_obar,
+    parametric_curve_pt,5);     
   }
 }// end upgrade elements
 

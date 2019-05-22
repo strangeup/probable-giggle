@@ -33,6 +33,7 @@
 
 // Include the library elements
 #include "C1_linear_plate_bending.h"
+#include "C1_basis/SubparametricTElement.h"
 
 // The mesh
 #include "meshes/triangle_mesh.h"
@@ -612,8 +613,8 @@ the mesh has returned an inverted element (less likely)",
     }
 
    // Upgrade it
-   bulk_el_pt->upgrade_to_curved_element(edge,s_ubar,s_obar,
-    parametric_curve_pt);     
+   bulk_el_pt->upgrade_element_to_curved(edge,s_ubar,s_obar,
+    parametric_curve_pt,5);     
   }
 }// end upgrade elements
 
@@ -831,6 +832,5 @@ int main(int argc, char **argv)
  oomph_info << "Solution number (" <<problem.Doc_info.number()-1 << ")" << std::endl;
  oomph_info << "---------------------------------------------" << std::endl;
  oomph_info << std::endl;
-
 } //End of main
 
