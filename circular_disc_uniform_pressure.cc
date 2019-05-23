@@ -980,7 +980,7 @@ int main(int argc, char **argv)
   TestSoln::nu = 1./3.;
 
   // Use a 3rd order curved Bell element, we don't need to upgrade it.
-  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,5> > problem(element_area);
+  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement > problem(element_area);
   problem.max_newton_iterations()=1;
 
   // We have defined 12 cases
@@ -1009,7 +1009,7 @@ int main(int argc, char **argv)
  }
 
  // Problem instance
- UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,5> >problem(element_area);
+ UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement>problem(element_area);
  problem.max_newton_iterations()=1;
  oomph_info<<"Solving for p=" << TestSoln::p_mag<<"\n";
  problem.newton_solve();

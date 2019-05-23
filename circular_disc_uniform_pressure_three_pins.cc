@@ -818,7 +818,7 @@ int main(int argc, char **argv)
  CommandLineArgs::doc_specified_flags();
 
  // Problem instance
- UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,5> >problem(element_area);
+ UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement >problem(element_area);
  oomph_info<<"Solving for p=" << TestSoln::p_mag<<"\n";
  problem.newton_solve();
 

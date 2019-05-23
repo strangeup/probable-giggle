@@ -1074,7 +1074,7 @@ int main(int argc, char **argv)
   TestSoln::Length_of_strip = 1.0;
 
   // Use a 3rd order curved Bell element, we don't need to upgrade it.
-  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,3> > problem(element_area);
+  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement> problem(element_area);
   problem.max_newton_iterations()=1;
 
   // We have defined 12 cases
@@ -1106,7 +1106,7 @@ int main(int argc, char **argv)
 
  // Problem instance
  // Use a 3rd order curved Bell element, we don't need to upgrade it.
- UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,3> > problem(element_area);
+ UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement> problem(element_area);
 
  problem.max_newton_iterations()=1;
 

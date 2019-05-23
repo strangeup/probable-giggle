@@ -892,7 +892,7 @@ int main(int argc, char **argv)
  CommandLineArgs::doc_specified_flags();
 
  // Problem instance
- UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement<2,2,5> >problem(element_area);
+ UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement >problem(element_area);
  problem.doc_solution();
   problem.self_test();
   problem.max_newton_iterations()=1;
