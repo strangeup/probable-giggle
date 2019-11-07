@@ -46,6 +46,9 @@ using MathematicalConstants::Pi;
 
 namespace TestSoln
 {
+// New type
+ typedef void (*BasisVectorsFctPt) (const Vector<double>& x, Vector<double>& b1,
+  Vector<double>& b2, DenseMatrix<double>& Db1, DenseMatrix<double>& Db2);
 //Shape of the domain
 double A = 1.0;
 double B = 1.0;
@@ -727,36 +730,26 @@ rotate_edge_degrees_of_freedom( Mesh* const &bulk_mesh_pt)
  
    // Loop nodes  
    unsigned nnode = el_pt->nnode();
-   unsigned nbnode=0 ;
-   // Count the number of boundary nodes that element e has on boundaries 0 and 1
+   // Set up the vector lookup made of pairs:  <ilocalnode,mapping_fct_pt>
+   Vector<std::pair<unsigned,TestSoln::BasisVectorsFctPt> > my_lookup;
+
+   // Fill in the bnode Vector
    for (unsigned n=0; n<nnode;++n)
-     {
-      nbnode+=unsigned(el_pt->node_pt(n)->is_on_boundary(0)||
-                       el_pt->node_pt(n)->is_on_boundary(1));
-      }
-
-   // Now, if we have nodes on boundary upgrade it
-   if(nbnode>0)
     {
-     // Set up vector
-     Vector<unsigned> bnode (nbnode,0);
-     unsigned inode(0);
-
-     // Fill in the bnode Vector
-     for (unsigned n=0; n<nnode;++n)
+     // If it is on the boundary
+     if(el_pt->node_pt(n)->is_on_boundary(0) ||
+        el_pt->node_pt(n)->is_on_boundary(1) )
       {
-       // If it is on the boundary
-       if((el_pt->node_pt(n)->is_on_boundary(0)||
-                       el_pt->node_pt(n)->is_on_boundary(1)))
-        {
-         // Set up the Vector
-         bnode[inode]=n;
-         ++inode;
-        }
+       // Global mapping so all nodes have the same BasisVectorFct
+       // In general this is not the case, and we may need a different mapping
+       // at each node
+       my_lookup.push_back(std::pair<unsigned,KirchhoffPlateBendingC1CurvedBellElement::BasisVectorsFctPt>
+         (n,&TestSoln::get_normal_and_tangent));
       }
-    // Now rotate Hermite degrees of freedom
-    el_pt->set_up_rotated_dofs(nbnode,bnode,&TestSoln::get_normal_and_tangent);
-   }
+    }
+   // Now rotate Hermite degrees of freedom, if there are boundary nodes
+   if(my_lookup.size()>0)
+    {el_pt->set_up_rotated_dofs(my_lookup);}
  }
 }// end create traction elements
 
