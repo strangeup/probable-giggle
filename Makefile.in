@@ -90,7 +90,8 @@ build_triplet = @build@
 host_triplet = @host@
 noinst_PROGRAMS = rectangular_sheet_kpb$(EXEEXT) \
 	circular_disc_three_pins_kpb$(EXEEXT) \
-	semi_annular_kpb$(EXEEXT) circular_disc_kpb$(EXEEXT)
+	semi_annular_kpb$(EXEEXT) rectangular_sheet_kpb_demo$(EXEEXT) \
+	circular_disc_kpb$(EXEEXT)
 subdir = user_drivers/probable-giggle
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/configure.ac_scripts/automake_init_command_file \
@@ -124,6 +125,12 @@ am_rectangular_sheet_kpb_OBJECTS =  \
 	rectangular_sheet_kirchhoff_plate_bending.$(OBJEXT)
 rectangular_sheet_kpb_OBJECTS = $(am_rectangular_sheet_kpb_OBJECTS)
 rectangular_sheet_kpb_DEPENDENCIES = $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
+am_rectangular_sheet_kpb_demo_OBJECTS =  \
+	rectangular_sheet_kirchhoff_plate_bending_demo.$(OBJEXT)
+rectangular_sheet_kpb_demo_OBJECTS =  \
+	$(am_rectangular_sheet_kpb_demo_OBJECTS)
+rectangular_sheet_kpb_demo_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1)
 am_semi_annular_kpb_OBJECTS = semi_annular_plate_pinned.$(OBJEXT)
 semi_annular_kpb_OBJECTS = $(am_semi_annular_kpb_OBJECTS)
@@ -164,10 +171,14 @@ am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
 SOURCES = $(circular_disc_kpb_SOURCES) \
 	$(circular_disc_three_pins_kpb_SOURCES) \
-	$(rectangular_sheet_kpb_SOURCES) $(semi_annular_kpb_SOURCES)
+	$(rectangular_sheet_kpb_SOURCES) \
+	$(rectangular_sheet_kpb_demo_SOURCES) \
+	$(semi_annular_kpb_SOURCES)
 DIST_SOURCES = $(circular_disc_kpb_SOURCES) \
 	$(circular_disc_three_pins_kpb_SOURCES) \
-	$(rectangular_sheet_kpb_SOURCES) $(semi_annular_kpb_SOURCES)
+	$(rectangular_sheet_kpb_SOURCES) \
+	$(rectangular_sheet_kpb_demo_SOURCES) \
+	$(semi_annular_kpb_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -420,6 +431,9 @@ EXTRA_DIST = validate.sh validata
 rectangular_sheet_kpb_SOURCES = \
  rectangular_sheet_kirchhoff_plate_bending.cc
 
+rectangular_sheet_kpb_demo_SOURCES = \
+ rectangular_sheet_kirchhoff_plate_bending_demo.cc
+
 circular_disc_three_pins_kpb_SOURCES = \
  circular_disc_uniform_pressure_three_pins.cc
 
@@ -432,6 +446,9 @@ circular_disc_kpb_SOURCES = \
 
 #---------------------------------------------------------------------------
 rectangular_sheet_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
+ -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
+
+rectangular_sheet_kpb_demo_LDADD = -L@libdir@ -lC1_linear_plate_bending \
  -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
 
 circular_disc_three_pins_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
@@ -499,6 +516,10 @@ rectangular_sheet_kpb$(EXEEXT): $(rectangular_sheet_kpb_OBJECTS) $(rectangular_s
 	@rm -f rectangular_sheet_kpb$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(rectangular_sheet_kpb_OBJECTS) $(rectangular_sheet_kpb_LDADD) $(LIBS)
 
+rectangular_sheet_kpb_demo$(EXEEXT): $(rectangular_sheet_kpb_demo_OBJECTS) $(rectangular_sheet_kpb_demo_DEPENDENCIES) $(EXTRA_rectangular_sheet_kpb_demo_DEPENDENCIES) 
+	@rm -f rectangular_sheet_kpb_demo$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(rectangular_sheet_kpb_demo_OBJECTS) $(rectangular_sheet_kpb_demo_LDADD) $(LIBS)
+
 semi_annular_kpb$(EXEEXT): $(semi_annular_kpb_OBJECTS) $(semi_annular_kpb_DEPENDENCIES) $(EXTRA_semi_annular_kpb_DEPENDENCIES) 
 	@rm -f semi_annular_kpb$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(semi_annular_kpb_OBJECTS) $(semi_annular_kpb_LDADD) $(LIBS)
@@ -512,6 +533,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/circular_disc_uniform_pressure.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/circular_disc_uniform_pressure_three_pins.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rectangular_sheet_kirchhoff_plate_bending.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rectangular_sheet_kirchhoff_plate_bending_demo.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/semi_annular_plate_pinned.Po@am__quote@
 
 .cc.o:

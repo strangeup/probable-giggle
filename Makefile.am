@@ -1,13 +1,16 @@
 # Name of executables: The prefix "noinst" means the executables don't
 # have to be installed anywhere.
 noinst_PROGRAMS =  rectangular_sheet_kpb circular_disc_three_pins_kpb semi_annular_kpb \
- circular_disc_kpb
+rectangular_sheet_kpb_demo circular_disc_kpb
 include $(top_srcdir)/config/makefile_templates/demo_drivers
 #---------------------------------------------------------------------------
 
 # Local sources that rectangular_sheet_kpb code depends on:
 rectangular_sheet_kpb_SOURCES = \
  rectangular_sheet_kirchhoff_plate_bending.cc
+
+rectangular_sheet_kpb_demo_SOURCES = \
+ rectangular_sheet_kirchhoff_plate_bending_demo.cc
 
 circular_disc_three_pins_kpb_SOURCES = \
  circular_disc_uniform_pressure_three_pins.cc
@@ -20,6 +23,9 @@ circular_disc_kpb_SOURCES = \
 
 #---------------------------------------------------------------------------
 rectangular_sheet_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
+ -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
+
+rectangular_sheet_kpb_demo_LDADD = -L@libdir@ -lC1_linear_plate_bending \
  -lC1_basis -lgeneric $(EXTERNAL_LIBS) $(FLIBS)
 
 circular_disc_three_pins_kpb_LDADD = -L@libdir@ -lC1_linear_plate_bending \
