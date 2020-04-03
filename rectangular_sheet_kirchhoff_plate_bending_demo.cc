@@ -36,9 +36,6 @@
 // The mesh
 #include "meshes/triangle_mesh.h"
 
-// The mesh
-#include "meshes/triangle_mesh.h"
-
 using namespace std;
 using namespace oomph;
 using MathematicalConstants::Pi;
@@ -214,7 +211,7 @@ private:
 // Free function helper in anonymous namepace (use a lambda in c++11)
 namespace {
  // Helper to make three vertice line from two vertices
- Vector<Vector<double>> make_three_vertice_line(const Vector<double>& x1,  
+ Vector<Vector<double>> make_three_vertice_line(const Vector<double>& x1,
     const Vector<double>& x2)
   {
     const unsigned number_of_vertices = 3, DIM = x1.size();
@@ -223,8 +220,8 @@ namespace {
     // Compute middle co-ordinate
     for(unsigned idim = 0; idim <DIM; ++idim)
       { vertices[1][idim] = (x1[idim] + x2[idim])/2.0; }
-    vertices[2] = x2;     
-    return vertices;   
+    vertices[2] = x2;
+    return vertices;
   }
 }
 
@@ -252,9 +249,9 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
  for(unsigned boundary_id = 0; boundary_id < num_boundaries; ++boundary_id)
   {
    const unsigned icorner1 = boundary_id % 4,
-                  icorner2 = (boundary_id + 1) % 4; 
+                  icorner2 = (boundary_id + 1) % 4;
    Outer_boundary_polyline_pt[boundary_id] = new TriangleMeshPolyLine(
-      ::make_three_vertice_line(corners[icorner1], corners[icorner2]), 
+      ::make_three_vertice_line(corners[icorner1], corners[icorner2]),
       boundary_id);
   }
 
@@ -346,7 +343,7 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
  for(unsigned ibound=0;ibound<Number_of_boundaries;ibound++)
   {
    const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound),
-                  number_of_dof_types = 6, 
+                  number_of_dof_types = 6,
                   DIM = 2;
 
    for (unsigned inod=0;inod<num_nod;inod++)
@@ -405,9 +402,9 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
 
 // Free function helper in anonymous namepace (use lambda in c++11)
 namespace {
-  void output_solution(const DocInfo& doc_info, Mesh* mesh_pt, 
-     const std::string& basename = "soln", 
-     const unsigned npts = 5) 
+  void output_solution(const DocInfo& doc_info, Mesh* mesh_pt,
+     const std::string& basename = "soln",
+     const unsigned npts = 5)
     {
      char filename[100];
      ofstream some_file;
