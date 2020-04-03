@@ -77,13 +77,6 @@ namespace TestSoln
   /// Perturbation
  double Pressure=1.0;
 
- /// Bool to determine which boundaries require traction elements
- bool is_boundary_moment_free(unsigned& ibound)
- {
-    // Free/Pinned/Sliding/Clamped
-    return ibound == 0 || ibound == 1;
- }
-
  bool is_boundary_held_at_zero_slope(unsigned& ibound)
  {
     // Free/Pinned/Sliding/Clamped
