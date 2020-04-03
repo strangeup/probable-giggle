@@ -606,6 +606,7 @@ int main(int argc, char **argv)
  CommandLineArgs::specify_command_line_flag("--p", &TestSoln::Pressure);
  CommandLineArgs::specify_command_line_flag("--nu", &TestSoln::nu);
  CommandLineArgs::specify_command_line_flag("--length", &TestSoln::Length_of_strip);
+ CommandLineArgs::specify_command_line_flag("--validate");
 
  // Parse command line
  CommandLineArgs::parse_and_assign();
@@ -616,6 +617,17 @@ int main(int argc, char **argv)
  // Output in high resolution
  TestSoln::High_resolution = CommandLineArgs::
    command_line_flag_has_been_set("--high_resolution");
+
+ if(CommandLineArgs::command_line_flag_has_been_set("--validate"))              
+ {                                                                              
+   oomph_info<<"Validate set, ignoring other command line arguments and setting"
+             <<" defaults."<<std::endl;                                         
+   element_area = 0.1;                                                          
+   TestSoln::High_resolution = false;                                           
+   TestSoln::Pressure = 1.0;                                                    
+   TestSoln::nu = 0.3;                                                          
+   TestSoln::Length_of_strip = 1.0;                                             
+ };
 
  // Label for output
  DocInfo doc_info;
