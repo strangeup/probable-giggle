@@ -89,14 +89,6 @@ namespace TestSoln
  {
     pressure = Pressure;
  }
-
- // Get a function which satisfies the boundary conditions (homogenous in this
- // case)
- void get_boundary_condition_function(const Vector<double>& x,
-   Vector<double>& exact_w)
-  {
-     exact_w = Vector<double>(exact_w.size(),0.0);
-  }
 }
 
 //==start_of_problem_class============================================
@@ -343,25 +335,33 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
  for(unsigned ibound=0;ibound<Number_of_boundaries;ibound++)
   {
    const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound),
-                  number_of_dof_types = 6,
                   DIM = 2;
 
    for (unsigned inod=0;inod<num_nod;inod++)
     {
      Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
      // Initialize exact_w and node position to all zeros
-     Vector<double> node_position(DIM), exact_w(number_of_dof_types);
+     Vector<double> node_position(DIM);
 
      // Fill in node position
      for(unsigned idim = 0; idim<DIM; ++idim)
       { node_position[idim] =  nod_pt->x(idim); }
 
-     // Get function which satisfies the boundary conditions
-     TestSoln::get_boundary_condition_function(node_position, exact_w);
+     // Dofs (by default) at a node X = (x0, x1) are:
+     // #0 - w(x1,x2)
+     // #1 - d/dx w (x0,x1) 
+     // #2 - d/dy w (x0,x1) 
+     // #3 - d2/dx2 w (x0,x1) 
+     // #4 - d2/dxdy w (x0,x1) 
+     // #5 - d2/dy2 w(x0,x1) 
 
-     // If the boundary is to be pinned
+     // If the boundary is to be pinned:
+     // Set w(x1, x2), dw/dt (x1, x2) and d2w/dt2 (x1, x2) for all nodes on the
+     // boundary.
      if(TestSoln::is_boundary_pinned(ibound))
       {
+       // Solution and tangential derivatives on the boundary {w, dw/dt, d2wdt2}
+       const Vector<double> solution_on_boundary(3,0.0);
        // Tangent direction: y-axis on even and x-axis on odd boundaries
        const unsigned iw = 0,
                       idwdt = (ibound % 2 == 0 ? 2 : 1),
@@ -369,19 +369,22 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
 
        // Pin value w(x,y) at boundary
        nod_pt->pin(iw);
-       nod_pt->set_value(iw, exact_w[iw]);
+       nod_pt->set_value(iw, solution_on_boundary[0]);
 
        // Pin tangent derivative d/dt w(x,y)
        nod_pt->pin(idwdt);
-       nod_pt->set_value(idwdt, exact_w[idwdt]);
+       nod_pt->set_value(idwdt, solution_on_boundary[1]);
        // Pin second tangent derivative d2/dt^2 w(x,y)
        nod_pt->pin(id2wdt2);
-       nod_pt->set_value(id2wdt2, exact_w[id2wdt2]);
+       nod_pt->set_value(id2wdt2, solution_on_boundary[2]);
       } // for (inod<num_nod)
 
-     // If the angle is to be set
+     // If an angle is to be imposed:
+     // Set dw/dn(x1, x2) and d2w/dndt (x1, x2) for all nodes.
      if(TestSoln::is_boundary_held_at_zero_slope(ibound))
       {
+       // Normal and cross derivative on the boundary {dw/dn, dw2/dwdn}
+       const Vector<double> normal_derivative_on_boundary(2,0.0);
        // Get node
        Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
 
@@ -390,10 +393,10 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
                       id2wdndt = 4;
        // Pin the normal derivatives, d/dn w(x,y)
        nod_pt->pin(idwdn);
-       nod_pt->set_value(idwdn, exact_w[idwdn]);
+       nod_pt->set_value(idwdn, normal_derivative_on_boundary[0]);
        // Pin the cross derivative, d2/dtdn w(x,y)
        nod_pt->pin(id2wdndt);
-       nod_pt->set_value(id2wdndt, exact_w[id2wdndt]);
+       nod_pt->set_value(id2wdndt, normal_derivative_on_boundary[1]);
       } // end if
     } // end for
   } // for (ibound<Number_of_boundaries)
