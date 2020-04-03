@@ -1,31 +1,31 @@
 //LIC// ====================================================================
-//LIC// This file forms part of oomph-lib, the object-oriented, 
-//LIC// multi-physics finite-element library, available 
+//LIC// This file forms part of oomph-lib, the object-oriented,
+//LIC// multi-physics finite-element library, available
 //LIC// at http://www.oomph-lib.org.
-//LIC// 
+//LIC//
 //LIC//           Version 0.85. June 9, 2008.
-//LIC// 
+//LIC//
 //LIC// Copyright (C) 2006-2008 Matthias Heil and Andrew Hazel
 //LIC//
 //LIC// This library is free software; you can redistribute it and/or
 //LIC// modify it under the terms of the GNU Lesser General Public
 //LIC// License as published by the Free Software Foundation; either
 //LIC// version 2.1 of the License, or (at your option) any later version.
-//LIC// 
+//LIC//
 //LIC// This library is distributed in the hope that it will be useful,
 //LIC// but WITHOUT ANY WARRANTY; without even the implied warranty of
 //LIC// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 //LIC// Lesser General Public License for more details.
-//LIC// 
+//LIC//
 //LIC// You should have received a copy of the GNU Lesser General Public
 //LIC// License along with this library; if not, write to the Free Software
 //LIC// Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 //LIC// 02110-1301  USA.
-//LIC// 
+//LIC//
 //LIC// The authors may be contacted at /oomph-lib@maths.man.ac.uk.
-//LIC// 
+//LIC//
 //LIC//====================================================================
-#include <fenv.h> 
+#include <fenv.h>
 
 //Generic routines
 #include "generic.h"
@@ -61,12 +61,12 @@ namespace TestSoln
  //       |       |
  //    0  |       |  2
  //       |_______|
- //      
+ //
  //           3
 
  /// Nondim length of strip (width is lengthscale and therefore 1)
  // length is in the y-direction, width=1 in y
- double Length_of_strip=1.0; 
+ double Length_of_strip=1.0;
 
  /// Poisson's ratio
  double nu = 0.3; /// hierher FvK parameter (Poisson's ratio)
@@ -81,20 +81,20 @@ namespace TestSoln
  bool is_boundary_moment_free(unsigned& ibound)
  {
     // Free/Pinned/Sliding/Clamped
-    return ibound == 0 || ibound == 1; 
+    return ibound == 0 || ibound == 1;
  }
 
  bool is_boundary_held_at_zero_slope(unsigned& ibound)
  {
     // Free/Pinned/Sliding/Clamped
-    return ibound == 2 || ibound == 3;  
+    return ibound == 2 || ibound == 3;
  }
 
  /// Bool to determine which boundaries to pin
  bool is_boundary_pinned(unsigned& ibound)
  {
     // Free/Pinned/Sliding/Clamped
-    return ibound == 1 || ibound == 3;  
+    return ibound == 1 || ibound == 3;
  }
 
  // Assigns the value of pressure depending on the position (x,y)
@@ -102,7 +102,7 @@ namespace TestSoln
  {
     pressure = Pressure;
  }
- 
+
  // Get the exact solution
  void get_exact_w(const Vector<double>& x, Vector<double>& exact_w)
   {
@@ -124,10 +124,10 @@ class UnstructuredFvKProblem : public virtual Problem
 {
 
 public:
-  
+
   /// Constructor
   UnstructuredFvKProblem(double element_area);
-  
+
  /// Destructor
  ~UnstructuredFvKProblem()
   {
@@ -140,17 +140,17 @@ public:
    // Delete the parameters
    delete Triangle_mesh_parameters_pt;
    // Close the trace
-   Trace_file.close();  
+   Trace_file.close();
    // Delete the Surface and Bulk mesh
    delete this->Surface_mesh_pt;
    delete Bulk_mesh_pt;
   };
- 
+
   /// Update after solve (empty)
-  void actions_after_newton_solve() 
+  void actions_after_newton_solve()
    {
    }
-  
+
   /// Update the problem specs before solve: Re-apply boundary conditons
   void actions_before_newton_solve()
   {
@@ -159,7 +159,7 @@ public:
     // Reassign the equation numbers
     assign_equation_numbers();
   }
- 
+
  /// Doc the solution
  void doc_solution(DocInfo& doc_info);
 
@@ -168,7 +168,7 @@ public:
  /// the actual mesh type.
  TriangleMesh<ELEMENT>* mesh_pt()
   {
-   return dynamic_cast<RefineableTriangleMesh<ELEMENT>*> (Problem::mesh_pt()); 
+   return dynamic_cast<RefineableTriangleMesh<ELEMENT>*> (Problem::mesh_pt());
   }
 
  // Unpin all of the dofs
@@ -187,7 +187,7 @@ public:
     }
 
 private:
- 
+
   /// Trace file to document norm of solution
   ofstream Trace_file;
 
@@ -203,23 +203,23 @@ private:
    {
    // Assign equations numbers
    oomph_info << "Number of equations: "
-              << this->assign_eqn_numbers() << '\n';  
-   
+              << this->assign_eqn_numbers() << '\n';
+
    // Document the number of elements in the mesh
    oomph_info << "Number of elements: " << Bulk_mesh_pt->nelement() << std::endl;
    }
 
   /// Create the mesh
   void set_up_rectangular_mesh(const double& element_area);
-  
+
   /// Pointers to specific mesh
   TriangleMesh<ELEMENT>* Bulk_mesh_pt;
-      
+
   /// Pointer to the "surface" mesh
   Mesh* Surface_mesh_pt;
-  
+
 protected:
-    
+
   // The initial (and maximum) element area
   double Element_area;
   // The mesh parameters
@@ -237,37 +237,37 @@ private:
 /// Set-up the rectangular mesh for the problem
 template <class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
- const double& element_area) 
+ const double& element_area)
 {
  // Local copies
  const double length = TestSoln::Length_of_strip/2.0;
  const double width = 1.0/2.0;
-  
+
  // Create the polylines
  // ---------------------------------------------------------------------
  // >> Boundary 0 (left boundary)
  const unsigned num_vertices_b0 = 3;
- 
+
  Vector<Vector <double> > vertices(num_vertices_b0);
- 
+
  for (unsigned i = 0; i < num_vertices_b0; i++)
    {
      vertices[i].resize(2);
    }
- 
+
  vertices[0][0] = -width;
  vertices[0][1] = -length;
- 
+
  vertices[1][0] = -width;
  vertices[1][1] = 0.0;
- 
+
  vertices[2][0] = -width;
  vertices[2][1] = length;
- 
+
  unsigned boundary_id = 0;
  Boundary0_pt =
    new TriangleMeshPolyLine(vertices, boundary_id);
- 
+
  // ---------------------------------------------------------------------
  // >> Boundary 1
  const unsigned num_vertices_b1 = 3;
@@ -276,20 +276,20 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
    {
      vertices[i].resize(2);
    }
- 
+
  vertices[0][0] = -width;
  vertices[0][1] = length;
- 
+
  vertices[1][0] = 0.0;
  vertices[1][1] = length;
- 
+
  vertices[2][0] = width;
  vertices[2][1] = length;
- 
+
  boundary_id = 1;
  Boundary1_pt =
    new TriangleMeshPolyLine(vertices, boundary_id);
- 
+
  // ---------------------------------------------------------------------
  // >> Boundary 2
  const unsigned num_vertices_b2 = 3;
@@ -298,20 +298,20 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
    {
      vertices[i].resize(2);
    }
- 
+
  vertices[0][0] = width;
  vertices[0][1] = length;
- 
+
  vertices[1][0] = width;
  vertices[1][1] = 0.0;
- 
+
  vertices[2][0] = width;
  vertices[2][1] = -length;
- 
+
  boundary_id = 2;
  Boundary2_pt =
    new TriangleMeshPolyLine(vertices, boundary_id);
- 
+
  // ---------------------------------------------------------------------
  // >> Boundary 3
  const unsigned num_vertices_b3 = 3;
@@ -320,34 +320,34 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
    {
      vertices[i].resize(2);
    }
- 
+
  vertices[0][0] = width;
  vertices[0][1] = -length;
- 
+
  vertices[1][0] = 0.0;
  vertices[1][1] = -length;
- 
+
  vertices[2][0] = -width;
  vertices[2][1] = -length;
- 
+
  boundary_id = 3;
  Boundary3_pt =
    new TriangleMeshPolyLine(vertices, boundary_id);
- 
+
  // ---------------------------------------------------------------------
  // >> Building the OUTER BOUNDARY
  // >> Setting up the domain with PolyLines
  Vector<TriangleMeshCurveSection*> outer_boundary_polyline_pt(4);
- 
+
  outer_boundary_polyline_pt[0] = Boundary0_pt;
  outer_boundary_polyline_pt[1] = Boundary1_pt;
  outer_boundary_polyline_pt[2] = Boundary2_pt;
  outer_boundary_polyline_pt[3] = Boundary3_pt;
- 
+
  // The outer polygon
- Outer_boundary_pt = 
+ Outer_boundary_pt =
   new TriangleMeshClosedCurve(outer_boundary_polyline_pt);
- 
+
  // --------------------------------------------------------------------
  //Create the mesh
  //---------------
@@ -360,7 +360,7 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
 
 template<class ELEMENT>
 UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
-  : Element_area(element_area), Triangle_mesh_parameters_pt(0), Outer_boundary_pt(0), 
+  : Element_area(element_area), Triangle_mesh_parameters_pt(0), Outer_boundary_pt(0),
     Boundary0_pt(0), Boundary1_pt(0), Boundary2_pt(0), Boundary3_pt(0)
 {
  // Set the maximum residuals for Newton iterations
@@ -368,10 +368,10 @@ UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
  // Set up the mesh
  set_up_rectangular_mesh(element_area);
  Bulk_mesh_pt = new TriangleMesh<ELEMENT>(*Triangle_mesh_parameters_pt);
-  
+
  // Store number of Poisson bulk elements (= number of elements so far).
  Bulk_mesh_pt->nelement();
-   
+
  // Create "surface mesh" that will contain only the bc
  // elements. The constructor just creates the mesh without
  // giving it any elements, nodes, etc.
@@ -386,26 +386,26 @@ UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
 
   oomph_info<<"Number Elements "<<Bulk_mesh_pt->nelement()<<std::endl;
   oomph_info<<"Number Nodes "<<Bulk_mesh_pt->nnode()<<std::endl;
- 
- // Open the trace and start recording 
+
+ // Open the trace and start recording
  char filename[100];
  sprintf(filename, "RESLT/trace.dat");
  Trace_file.open(filename);
 
  // Complete the problem setup
  complete_problem_setup();
- 
+
  // Assign the equation numbers
  assign_equation_numbers();
 }
 
 //==start_of_complete======================================================
- /// Set boundary condition exactly, and complete the build of 
+ /// Set boundary condition exactly, and complete the build of
  /// all elements
 //========================================================================
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
-{  
+{
  // -------------------------------------------------------------------
  // Complete the build of all elements so they are fully functional
  const unsigned n_element = Bulk_mesh_pt->nelement();
@@ -413,10 +413,10 @@ void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
   {
    // Upcast from GeneralisedElement to the present element
    ELEMENT* el_pt = dynamic_cast<ELEMENT*>(Bulk_mesh_pt->element_pt(e));
-   
+
    //Set the pressure function pointers and the physical constants
    el_pt->nu_pt() = &TestSoln::nu;
-   el_pt->pressure_fct_pt() = &TestSoln::get_pressure;   
+   el_pt->pressure_fct_pt() = &TestSoln::get_pressure;
   }
  // Apply boundary conditions
  apply_boundary_conditions();
@@ -446,25 +446,25 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
      Vector<double> node_position(2,0.0), exact_w(6,0.0);
      node_position[0] =  nod_pt->x(0);
      node_position[1] =  nod_pt->x(1);
-     
+
      // If the boundary is to be pinned
      if(TestSoln::is_boundary_pinned(ibound))
       {
        // Pin the value of w at nodes
        nod_pt->pin(0);   // w
        nod_pt->set_value(0,exact_w[0]); // w
-       
+
        // Pin the tangent derivatives at nodes
        // On even boundaries y axis is the tangent direction
        // On odd boundaries the x axis is the tangent direction
-       const unsigned idwdt = (ibound % 2 ? 2 : 1); 
-       const unsigned id2wdt2 = (ibound % 2 ? 5 : 3); 
+       const unsigned idwdt = (ibound % 2 ? 2 : 1);
+       const unsigned id2wdt2 = (ibound % 2 ? 5 : 3);
        // Pin tangent derivative dwdt
-       nod_pt->pin(idwdt);   
-       nod_pt->set_value(idwdt,exact_w[idwdt]); 
+       nod_pt->pin(idwdt);
+       nod_pt->set_value(idwdt,exact_w[idwdt]);
        // Pin second tangent derivative d2wdy2
        nod_pt->pin(id2wdt2);
-       nod_pt->set_value(id2wdt2,exact_w[id2wdt2]); 
+       nod_pt->set_value(id2wdt2,exact_w[id2wdt2]);
       } // for (inod<num_nod)
 
      // If the angle is to be set
@@ -472,14 +472,14 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
       {
        // Get node
        Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
-       // Pin the cross derivative 
+       // Pin the cross derivative
        // d2wdydx
-       nod_pt->pin(4);   
+       nod_pt->pin(4);
        nod_pt->set_value(4,exact_w[4]);
-       
+
        // Pin the normal derivatives
        // On odd boundaries normal is y
-       if(ibound % 2 == 1) 
+       if(ibound % 2 == 1)
         {
          nod_pt->pin(2);   // dwdy
          nod_pt->set_value(2,exact_w[2]);
@@ -491,14 +491,14 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
          nod_pt->set_value(1,exact_w[1]);
         }
       } // end if
-    } // end for 
-    
-   // Get number of nodes on ibound 
+    } // end for
+
+   // Get number of nodes on ibound
    for (unsigned inod=0;inod<num_nod;inod++)
     {
      // Get node
      Node* nod_pt=this->Bulk_mesh_pt->boundary_node_pt(ibound,inod);
-            
+
      // Extract nodal coordinates from node:
      Vector<double> x(2);
      x[0]=nod_pt->x(0);
@@ -512,18 +512,18 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
 //========================================================================
 template<class ELEMENT>
 void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
-{  
+{
   oomph_info << "==============================================" << std::endl;
   oomph_info << "========= Documenting solution ===============" << std::endl;
   oomph_info << "==============================================" << std::endl;
   oomph_info << std::endl;
-  
+
   ofstream some_file;
   char filename[100];
-  
+
   // Number of plot points
   unsigned npts = 2;
-  
+
   sprintf(filename,"%s/coarse_soln%i.dat",
           doc_info.directory().c_str(),
           doc_info.number());
@@ -540,13 +540,13 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
   some_file.open(filename);
   this->Bulk_mesh_pt->output(some_file,npts);
   some_file.close();
-  
+
   //  Output exact solution
   sprintf(filename, "%s/exact_sol_%i.dat",
           doc_info.directory().c_str(),
           doc_info.number());
-  ofstream exact_file(filename,ios::app); 
-  this->Bulk_mesh_pt->output_fct(exact_file,npts,TestSoln::get_exact_w); 
+  ofstream exact_file(filename,ios::app);
+  this->Bulk_mesh_pt->output_fct(exact_file,npts,TestSoln::get_exact_w);
   exact_file.close();
 
   sprintf(filename,"%s/bc%i.dat",
@@ -569,7 +569,7 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
 
  // The member function does not exist in this element
  // it is instead called interpolated_u_biharmonic and returns a vector of length
- // 6 - this may need tidying up 
+ // 6 - this may need tidying up
  Vector<double> u_0(6,0.0);
  dynamic_cast<ELEMENT*>(geom_obj_pt)->interpolated_u_biharmonic(s,u_0);
  oomph_info << "w in the middle: " << u_0[0] << std::endl;
@@ -591,18 +591,18 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
 ///Driver code for demo of inline triangle mesh generation
 //============================================================
 int main(int argc, char **argv)
-{  
+{
  feenableexcept(FE_INVALID | FE_DIVBYZERO);
- 
+
  // Store command line arguments
  CommandLineArgs::setup(argc,argv);
- 
+
  // Swith timings on
  Global_timings::Doc_comprehensive_timings = true;
- 
+
  // Store command line arguments
  CommandLineArgs::setup(argc,argv);
- 
+
  // Define possible command line arguments and parse the ones that
  // were actually specified
  string output_dir="RESLT";
@@ -615,8 +615,8 @@ int main(int argc, char **argv)
  CommandLineArgs::specify_command_line_flag("--length", &TestSoln::Length_of_strip);
 
  // Parse command line
- CommandLineArgs::parse_and_assign(); 
- 
+ CommandLineArgs::parse_and_assign();
+
  // Doc what has actually been specified on the command line
  CommandLineArgs::doc_specified_flags();
 
@@ -626,7 +626,7 @@ int main(int argc, char **argv)
 
  // Label for output
  DocInfo doc_info;
- 
+
  // Output directory
  doc_info.set_directory(output_dir);
 
@@ -647,7 +647,7 @@ int main(int argc, char **argv)
 
  //Output solution
  problem.doc_solution(doc_info);
- 
+
  oomph_info << std::endl;
  oomph_info << "---------------------------------------------" << std::endl;
  oomph_info << "Pressure (" << TestSoln::Pressure << ")" << std::endl;
@@ -661,7 +661,7 @@ int main(int argc, char **argv)
   {
    // Total time for problem
    oomph_info
-    << "Total problem time: " 
+    << "Total problem time: "
     << TimingHelpers::timer()-tt_start << std::endl;
   }
 } //End of main
