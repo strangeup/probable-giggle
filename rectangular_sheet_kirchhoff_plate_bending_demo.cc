@@ -39,9 +39,6 @@
 // The mesh
 #include "meshes/triangle_mesh.h"
 
-// Analytic Solutions for linear plate bending problems
-#include "kirchhoff_plate_bending_analytic_solutions.h"
-
 using namespace std;
 using namespace oomph;
 using MathematicalConstants::Pi;
