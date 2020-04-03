@@ -103,8 +103,9 @@ namespace TestSoln
     pressure = Pressure;
  }
 
- // Get the exact solution
- void get_exact_w(const Vector<double>& x, Vector<double>& exact_w)
+ // Get a function which satisfies the boundary conditions (homogenous in this
+ // case)
+ void get_boundary_condition_function(const Vector<double>& x, Vector<double>& exact_w)
   {
      exact_w = Vector<double>(exact_w.size(),0.0);
   }
@@ -195,7 +196,7 @@ private:
   void apply_boundary_conditions();
 
   /// \short Helper function to (re-)set boundary condition
-  /// and //complete the build of  all elements
+  /// and complete the build of  all elements
   void complete_problem_setup();
 
   /// Helper function to (re-)set equation numbers for problem
@@ -360,8 +361,9 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
 
 template<class ELEMENT>
 UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
-  : Element_area(element_area), Triangle_mesh_parameters_pt(0), Outer_boundary_pt(0),
-    Boundary0_pt(0), Boundary1_pt(0), Boundary2_pt(0), Boundary3_pt(0)
+  : Element_area(element_area), Triangle_mesh_parameters_pt(nullptr), 
+    Outer_boundary_pt(nullptr), Boundary0_pt(nullptr), Boundary1_pt(nullptr), 
+    Boundary2_pt(nullptr), Boundary3_pt(nullptr)
 {
  // Set the maximum residuals for Newton iterations
  Problem::Max_residuals = 1000;
@@ -443,28 +445,38 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
      // Get node
      Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
      // Initialise node_position and exact_w
-     Vector<double> node_position(2,0.0), exact_w(6,0.0);
-     node_position[0] =  nod_pt->x(0);
-     node_position[1] =  nod_pt->x(1);
+     const unsigned number_of_dof_types = 6, DIM = 2;
+     // Initialize exact_w and node position to all zeros
+     Vector<double> node_position(DIM), exact_w(number_of_dof_types,0.0);
+     // Fill in node position
+     for(unsigned idim = 0; idim< DIM; ++idim)
+      {
+        node_position[idim] =  nod_pt->x(idim);
+      }
+
+     // Get function which satisfies the boundary conditions 
+     TestSoln::get_boundary_condition_function(node_position, exact_w);
 
      // If the boundary is to be pinned
      if(TestSoln::is_boundary_pinned(ibound))
       {
        // Pin the value of w at nodes
-       nod_pt->pin(0);   // w
-       nod_pt->set_value(0,exact_w[0]); // w
-
-       // Pin the tangent derivatives at nodes
        // On even boundaries y axis is the tangent direction
        // On odd boundaries the x axis is the tangent direction
-       const unsigned idwdt = (ibound % 2 ? 2 : 1);
-       const unsigned id2wdt2 = (ibound % 2 ? 5 : 3);
-       // Pin tangent derivative dwdt
+       const unsigned iw = 0,
+                      idwdt = (ibound % 2 == 0 ? 2 : 1),
+                      id2wdt2 = (ibound % 2 == 0 ? 5 : 3);
+
+       // Pin value w(x,y) at boundary
+       nod_pt->pin(iw);   
+       nod_pt->set_value(iw, exact_w[iw]);
+
+       // Pin tangent derivative d/dt w(x,y)
        nod_pt->pin(idwdt);
-       nod_pt->set_value(idwdt,exact_w[idwdt]);
-       // Pin second tangent derivative d2wdy2
+       nod_pt->set_value(idwdt, exact_w[idwdt]);
+       // Pin second tangent derivative d2/dt^2 w(x,y)
        nod_pt->pin(id2wdt2);
-       nod_pt->set_value(id2wdt2,exact_w[id2wdt2]);
+       nod_pt->set_value(id2wdt2, exact_w[id2wdt2]);
       } // for (inod<num_nod)
 
      // If the angle is to be set
@@ -472,24 +484,17 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
       {
        // Get node
        Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
-       // Pin the cross derivative
-       // d2wdydx
-       nod_pt->pin(4);
-       nod_pt->set_value(4,exact_w[4]);
 
-       // Pin the normal derivatives
-       // On odd boundaries normal is y
-       if(ibound % 2 == 1)
-        {
-         nod_pt->pin(2);   // dwdy
-         nod_pt->set_value(2,exact_w[2]);
-        }
-       // On even boundaries normal is x
-       if (ibound % 2 == 0) // even boundaries
-        {
-         nod_pt->pin(1);   // dwdx
-         nod_pt->set_value(1,exact_w[1]);
-        }
+       // On even boundaries x axis is the normal direction
+       // On odd boundaries the y axis is the normal direction
+       const unsigned idwdn = (ibound % 2 == 0 ? 1 : 2),
+                      id2wdndt = 4;
+       // Pin the normal derivatives, d/dn w(x,y)
+       nod_pt->pin(idwdn);
+       nod_pt->set_value(idwdn, exact_w[idwdn]);
+       // Pin the cross derivative, d2/dtdn w(x,y)
+       nod_pt->pin(id2wdndt);
+       nod_pt->set_value(id2wdndt, exact_w[id2wdndt]);
       } // end if
     } // end for
 
@@ -541,14 +546,6 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
   this->Bulk_mesh_pt->output(some_file,npts);
   some_file.close();
 
-  //  Output exact solution
-  sprintf(filename, "%s/exact_sol_%i.dat",
-          doc_info.directory().c_str(),
-          doc_info.number());
-  ofstream exact_file(filename,ios::app);
-  this->Bulk_mesh_pt->output_fct(exact_file,npts,TestSoln::get_exact_w);
-  exact_file.close();
-
   sprintf(filename,"%s/bc%i.dat",
           doc_info.directory().c_str(),
           doc_info.number());
@@ -556,9 +553,6 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
   this->Surface_mesh_pt->output(some_file,npts);
   some_file.close();
 
- // HERE need to sever the link or fix the BellElement class - as this class
- // BREAKS locate zeta by intoducing unitialized value through n_position_type
- // which is  =  6 for use in interpolation
  // Find the solution at x = y = 0
  MeshAsGeomObject* Mesh_as_geom_obj_pt=
   new MeshAsGeomObject(Bulk_mesh_pt);
@@ -567,10 +561,9 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
  Vector<double> r(2,0.0);
  Mesh_as_geom_obj_pt->locate_zeta(r,geom_obj_pt,s);
 
- // The member function does not exist in this element
- // it is instead called interpolated_u_biharmonic and returns a vector of length
- // 6 - this may need tidying up
- Vector<double> u_0(6,0.0);
+ // Get interpolated displacement at the centre
+ const unsigned number_of_output_fields = 6;
+ Vector<double> u_0(number_of_output_fields,0.0);
  dynamic_cast<ELEMENT*>(geom_obj_pt)->interpolated_u_biharmonic(s,u_0);
  oomph_info << "w in the middle: " << u_0[0] << std::endl;
 
