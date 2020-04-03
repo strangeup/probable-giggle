@@ -170,64 +170,19 @@ public:
   {
    return dynamic_cast<RefineableTriangleMesh<ELEMENT>*> (Problem::mesh_pt()); 
   }
- 
- void output_boundary_nodal_values() 
-  {  
-   // loop over boundaries
-   for(unsigned ibound=0;ibound<Number_of_boundaries;ibound++)
-    {
-     oomph_info<<"### Boundary "<<ibound<<" ###\n";
-     const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
-     for (unsigned inod=0;inod<num_nod;inod++)
-      {
-       // Get node
-       Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
-       oomph_info<<"Node at: ("<<nod_pt->x(0)<<","<<nod_pt->x(1)<<")\n";
-       for(unsigned i=0;i<6;i++)
-        { oomph_info<<nod_pt->value(i)<<(i==5?"\n":","); }
-      } // for (inod<num_nod)
-      
-    } // end loop over boundaries
-  }
-
-  // Set the dofs to the exact solution
-  void set_dofs_to_exact_solution()
-    {
-     // Get total number of nodes
-     unsigned n_node  =Bulk_mesh_pt->nnode();
-     // Loop over nodes
-     for(unsigned inod=0;inod<n_node;++inod)
-      {
-       // Get node
-       Node* nod_pt=Bulk_mesh_pt->node_pt(inod);
-       // Set value
-       // Initialise node_position and exact_w
-       Vector<double> node_position(2,0.0), exact_w(6,0.0);
-       node_position[0] =  nod_pt->x(0);
-       node_position[1] =  nod_pt->x(1);
-       // Get exact solution
-       TestSoln::get_exact_w(node_position,exact_w);
-       // Loop over nodes
-       for(unsigned idof=0;idof<6;++idof)
-        {
-         nod_pt->set_value(idof,exact_w[idof]);
-        }
-      }
-    }
 
  // Unpin all of the dofs
   void unpin_all_dofs()
     {
      // Get total number of nodes
-     unsigned n_node  =Bulk_mesh_pt->nnode();
+     unsigned n_node=Bulk_mesh_pt->nnode();
      // Loop over nodes
      for(unsigned inod=0;inod<n_node;++inod)
       {
-       // Get node
        Node* nod_pt=Bulk_mesh_pt->node_pt(inod);
        const unsigned ndof_type=6;
        for(unsigned i=0;i<ndof_type;++i)
-        {nod_pt->unpin(i);}
+        { nod_pt->unpin(i); }
       }
     }
 
@@ -495,32 +450,23 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
      // If the boundary is to be pinned
      if(TestSoln::is_boundary_pinned(ibound))
       {
-       // Pin unknown values
+       // Pin the value of w at nodes
        nod_pt->pin(0);   // w
        nod_pt->set_value(0,exact_w[0]); // w
        
-       // Pin the tangent derivatives
-       // On even boundaries y is tangent direction
-       if(ibound % 2 == 0)         
-        {
-         // Pin tangent derivative dwdy
-         nod_pt->pin(2);   
-         nod_pt->set_value(2,exact_w[2]); 
-         // Pin second tangent derivative d2wdy2
-         nod_pt->pin(5);
-         nod_pt->set_value(5,exact_w[5]); 
-        }
-       // On odd boundaries x is tangent direction
-       else /*if (ibound % 2 ==1)*/
-        {
-         // Pin tangent derivative dwdx
-         nod_pt->pin(1);
-         nod_pt->set_value(1,exact_w[1]); 
-         // Pin second tangent derivative d2wdx2
-         nod_pt->pin(3);
-         nod_pt->set_value(3,exact_w[3]); 
-        }            
+       // Pin the tangent derivatives at nodes
+       // On even boundaries y axis is the tangent direction
+       // On odd boundaries the x axis is the tangent direction
+       const unsigned idwdt = (ibound % 2 ? 2 : 1); 
+       const unsigned id2wdt2 = (ibound % 2 ? 5 : 3); 
+       // Pin tangent derivative dwdt
+       nod_pt->pin(idwdt);   
+       nod_pt->set_value(idwdt,exact_w[idwdt]); 
+       // Pin second tangent derivative d2wdy2
+       nod_pt->pin(id2wdt2);
+       nod_pt->set_value(id2wdt2,exact_w[id2wdt2]); 
       } // for (inod<num_nod)
+
      // If the angle is to be set
      if(TestSoln::is_boundary_held_at_zero_slope(ibound))
       {
@@ -624,7 +570,7 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
  // The member function does not exist in this element
  // it is instead called interpolated_u_biharmonic and returns a vector of length
  // 6 - this may need tidying up 
- Vector<double> u_0(12,0.0);
+ Vector<double> u_0(6,0.0);
  dynamic_cast<ELEMENT*>(geom_obj_pt)->interpolated_u_biharmonic(s,u_0);
  oomph_info << "w in the middle: " << u_0[0] << std::endl;
 
