@@ -111,7 +111,6 @@ namespace TestSoln
   }
 }
 
-
 ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////
@@ -134,10 +133,9 @@ public:
   {
    // Clean up boundary data
    delete Outer_boundary_pt;
-   delete Boundary0_pt;
-   delete Boundary1_pt;
-   delete Boundary2_pt;
-   delete Boundary3_pt;
+   // Delete the polyline data
+   for(unsigned ibound = 0; ibound< Outer_boundary_polyline_pt.size(); ++ibound)
+    { delete Outer_boundary_polyline_pt[ibound]; }
    // Delete the parameters
    delete Triangle_mesh_parameters_pt;
    // Close the trace
@@ -226,14 +224,28 @@ protected:
   // The mesh parameters
   TriangleMeshParameters* Triangle_mesh_parameters_pt;
   TriangleMeshClosedCurve* Outer_boundary_pt;
-  TriangleMeshPolyLine* Boundary0_pt;
-  TriangleMeshPolyLine* Boundary1_pt;
-  TriangleMeshPolyLine* Boundary2_pt;
-  TriangleMeshPolyLine* Boundary3_pt;
+  Vector<TriangleMeshCurveSection*> Outer_boundary_polyline_pt;
 
 private:
   const unsigned Number_of_boundaries = 4;
 }; // end_of_problem_class
+
+// Free function helper in anonymous namepace, use lambda in c++11
+namespace {
+ // Helper to make three vertice line from two vertices
+ Vector<Vector<double>> make_three_vertice_line(const Vector<double>& x1,  
+    const Vector<double>& x2)
+  {
+    const unsigned number_of_vertices = 3, DIM = x1.size();
+    Vector<Vector<double>> vertices(number_of_vertices, Vector<double>(DIM));
+    vertices[0] = x1;
+    // Compute middle co-ordinate
+    for(unsigned idim = 0; idim <DIM; ++idim)
+      { vertices[1][idim] = (x1[idim] + x2[idim])/2.0; }
+    vertices[2] = x2;     
+    return vertices;   
+  }
+}
 
 /// Set-up the rectangular mesh for the problem
 template <class ELEMENT>
@@ -244,114 +256,37 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
  const double length = TestSoln::Length_of_strip/2.0;
  const double width = 1.0/2.0;
 
- // Create the polylines
- // ---------------------------------------------------------------------
- // >> Boundary 0 (left boundary)
- const unsigned num_vertices_b0 = 3;
-
- Vector<Vector <double> > vertices(num_vertices_b0);
-
- for (unsigned i = 0; i < num_vertices_b0; i++)
-   {
-     vertices[i].resize(2);
-   }
-
- vertices[0][0] = -width;
- vertices[0][1] = -length;
-
- vertices[1][0] = -width;
- vertices[1][1] = 0.0;
-
- vertices[2][0] = -width;
- vertices[2][1] = length;
-
- unsigned boundary_id = 0;
- Boundary0_pt =
-   new TriangleMeshPolyLine(vertices, boundary_id);
-
- // ---------------------------------------------------------------------
- // >> Boundary 1
- const unsigned num_vertices_b1 = 3;
- vertices.resize(num_vertices_b1);
- for (unsigned i = 0; i < num_vertices_b1; i++)
-   {
-     vertices[i].resize(2);
-   }
-
- vertices[0][0] = -width;
- vertices[0][1] = length;
-
- vertices[1][0] = 0.0;
- vertices[1][1] = length;
-
- vertices[2][0] = width;
- vertices[2][1] = length;
-
- boundary_id = 1;
- Boundary1_pt =
-   new TriangleMeshPolyLine(vertices, boundary_id);
-
- // ---------------------------------------------------------------------
- // >> Boundary 2
- const unsigned num_vertices_b2 = 3;
- vertices.resize(num_vertices_b2);
- for (unsigned i = 0; i < num_vertices_b2; i++)
-   {
-     vertices[i].resize(2);
-   }
-
- vertices[0][0] = width;
- vertices[0][1] = length;
-
- vertices[1][0] = width;
- vertices[1][1] = 0.0;
-
- vertices[2][0] = width;
- vertices[2][1] = -length;
-
- boundary_id = 2;
- Boundary2_pt =
-   new TriangleMeshPolyLine(vertices, boundary_id);
-
- // ---------------------------------------------------------------------
- // >> Boundary 3
- const unsigned num_vertices_b3 = 3;
- vertices.resize(num_vertices_b3);
- for (unsigned i = 0; i < num_vertices_b3; i++)
-   {
-     vertices[i].resize(2);
-   }
-
- vertices[0][0] = width;
- vertices[0][1] = -length;
-
- vertices[1][0] = 0.0;
- vertices[1][1] = -length;
-
- vertices[2][0] = -width;
- vertices[2][1] = -length;
-
- boundary_id = 3;
- Boundary3_pt =
-   new TriangleMeshPolyLine(vertices, boundary_id);
+ // A Rectangular sheet has four corners
+ const unsigned num_vertices = 4, DIM = 2, num_boundaries = 4;
+ Vector<Vector <double> > corners(num_vertices, Vector<double>(DIM));
+ corners[0][0] = -width; corners[0][1] = -length;
+ corners[1][0] = -width; corners[1][1] =  length;
+ corners[2][0] =  width; corners[2][1] =  length;
+ corners[3][0] =  width; corners[3][1] = -length;
 
  // ---------------------------------------------------------------------
  // >> Building the OUTER BOUNDARY
+ // ---------------------------------------------------------------------
  // >> Setting up the domain with PolyLines
- Vector<TriangleMeshCurveSection*> outer_boundary_polyline_pt(4);
+ Outer_boundary_polyline_pt.resize(num_boundaries);
 
- outer_boundary_polyline_pt[0] = Boundary0_pt;
- outer_boundary_polyline_pt[1] = Boundary1_pt;
- outer_boundary_polyline_pt[2] = Boundary2_pt;
- outer_boundary_polyline_pt[3] = Boundary3_pt;
+ // Labelling from Boundary 0 (left boundary), fill create boundary lines
+ for(unsigned boundary_id = 0; boundary_id < num_boundaries; ++boundary_id)
+  {
+   const unsigned icorner1 = boundary_id % 4,
+                  icorner2 = (boundary_id + 1) % 4; 
+   Outer_boundary_polyline_pt[boundary_id] = new TriangleMeshPolyLine(
+      ::make_three_vertice_line(corners[icorner1], corners[icorner2]), 
+      boundary_id);
+  }
 
  // The outer polygon
  Outer_boundary_pt =
-  new TriangleMeshClosedCurve(outer_boundary_polyline_pt);
+  new TriangleMeshClosedCurve(Outer_boundary_polyline_pt);
 
  // --------------------------------------------------------------------
  //Create the mesh
- //---------------
+ // --------------------------------------------------------------------
  //Create mesh parameters object
  Triangle_mesh_parameters_pt = new TriangleMeshParameters(Outer_boundary_pt);
 
@@ -361,9 +296,8 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
 
 template<class ELEMENT>
 UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
-  : Element_area(element_area), Triangle_mesh_parameters_pt(nullptr), 
-    Outer_boundary_pt(nullptr), Boundary0_pt(nullptr), Boundary1_pt(nullptr), 
-    Boundary2_pt(nullptr), Boundary3_pt(nullptr)
+  : Element_area(element_area), Triangle_mesh_parameters_pt(nullptr),
+    Outer_boundary_pt(nullptr), Outer_boundary_polyline_pt()
 {
  // Set the maximum residuals for Newton iterations
  Problem::Max_residuals = 1000;
@@ -450,11 +384,9 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
      Vector<double> node_position(DIM), exact_w(number_of_dof_types,0.0);
      // Fill in node position
      for(unsigned idim = 0; idim< DIM; ++idim)
-      {
-        node_position[idim] =  nod_pt->x(idim);
-      }
+      { node_position[idim] =  nod_pt->x(idim); }
 
-     // Get function which satisfies the boundary conditions 
+     // Get function which satisfies the boundary conditions
      TestSoln::get_boundary_condition_function(node_position, exact_w);
 
      // If the boundary is to be pinned
@@ -468,7 +400,7 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
                       id2wdt2 = (ibound % 2 == 0 ? 5 : 3);
 
        // Pin value w(x,y) at boundary
-       nod_pt->pin(iw);   
+       nod_pt->pin(iw);
        nod_pt->set_value(iw, exact_w[iw]);
 
        // Pin tangent derivative d/dt w(x,y)
@@ -497,20 +429,27 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
        nod_pt->set_value(id2wdndt, exact_w[id2wdndt]);
       } // end if
     } // end for
-
-   // Get number of nodes on ibound
-   for (unsigned inod=0;inod<num_nod;inod++)
-    {
-     // Get node
-     Node* nod_pt=this->Bulk_mesh_pt->boundary_node_pt(ibound,inod);
-
-     // Extract nodal coordinates from node:
-     Vector<double> x(2);
-     x[0]=nod_pt->x(0);
-     x[1]=nod_pt->x(1);
-    } // for (inod<num_nod)
   } // for (ibound<Number_of_boundaries)
 } // end set bc
+
+
+// Free function helper in anonymous namepace, use lambda in c++11
+namespace {
+  void output_solution(const DocInfo& doc_info, Mesh* mesh_pt, 
+     const std::string& basename = "soln", 
+     const unsigned npts = 5) 
+    {
+     char filename[100];
+     ofstream some_file;
+     sprintf(filename,"%s/%s%i.dat",
+             basename.c_str(),
+             doc_info.directory().c_str(),
+             doc_info.number());
+     some_file.open(filename);
+     mesh_pt->output(some_file,npts);
+     some_file.close();
+   }
+}
 
 //==start_of_doc_solution=================================================
 /// Doc the solution
@@ -523,35 +462,14 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
   oomph_info << "==============================================" << std::endl;
   oomph_info << std::endl;
 
-  ofstream some_file;
-  char filename[100];
-
   // Number of plot points
-  unsigned npts = 2;
-
-  sprintf(filename,"%s/coarse_soln%i.dat",
-          doc_info.directory().c_str(),
-          doc_info.number());
-  some_file.open(filename);
-  this->Bulk_mesh_pt->output(some_file,npts);
-  some_file.close();
+  unsigned const npts_coarse= 2;
+  ::output_solution(doc_info, this->Bulk_mesh_pt, "coarse_soln", npts_coarse);
 
   // Output with very high resolution
-  npts = TestSoln::High_resolution ? 25 : 5;
-  sprintf(filename,"%s/soln%i-%f.dat",
-          doc_info.directory().c_str(),
-          doc_info.number(),
-          Element_area);
-  some_file.open(filename);
-  this->Bulk_mesh_pt->output(some_file,npts);
-  some_file.close();
-
-  sprintf(filename,"%s/bc%i.dat",
-          doc_info.directory().c_str(),
-          doc_info.number());
-  some_file.open(filename);
-  this->Surface_mesh_pt->output(some_file,npts);
-  some_file.close();
+  unsigned const npts = TestSoln::High_resolution ? 25 : 5;
+  ::output_solution(doc_info, this->Bulk_mesh_pt, "soln", npts);
+  ::output_solution(doc_info, this->Bulk_mesh_pt, "bc", npts);
 
  // Find the solution at x = y = 0
  MeshAsGeomObject* Mesh_as_geom_obj_pt=
@@ -568,9 +486,10 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
  oomph_info << "w in the middle: " << u_0[0] << std::endl;
 
  // Get the precision
- const unsigned default_precision = Trace_file.precision();
+ const unsigned default_precision = Trace_file.precision(),
+                temporary_precision = 15;
  // Print to trace file
- Trace_file.precision(15);
+ Trace_file.precision(temporary_precision);
  Trace_file <<Element_area <<" "<< u_0[0] << std::endl;
  Trace_file.precision(default_precision);
 
@@ -599,8 +518,8 @@ int main(int argc, char **argv)
  // Define possible command line arguments and parse the ones that
  // were actually specified
  string output_dir="RESLT";
+ double element_area=0.1;
  CommandLineArgs::specify_command_line_flag("--dir", &output_dir);
- double element_area=.1;
  CommandLineArgs::specify_command_line_flag("--element_area", &element_area);
  CommandLineArgs::specify_command_line_flag("--high_resolution");
  CommandLineArgs::specify_command_line_flag("--p", &TestSoln::Pressure);
@@ -618,15 +537,15 @@ int main(int argc, char **argv)
  TestSoln::High_resolution = CommandLineArgs::
    command_line_flag_has_been_set("--high_resolution");
 
- if(CommandLineArgs::command_line_flag_has_been_set("--validate"))              
- {                                                                              
+ if(CommandLineArgs::command_line_flag_has_been_set("--validate"))
+ {
    oomph_info<<"Validate set, ignoring other command line arguments and setting"
-             <<" defaults."<<std::endl;                                         
-   element_area = 0.1;                                                          
-   TestSoln::High_resolution = false;                                           
-   TestSoln::Pressure = 1.0;                                                    
-   TestSoln::nu = 0.3;                                                          
-   TestSoln::Length_of_strip = 1.0;                                             
+             <<" defaults."<<std::endl;
+   element_area = 0.1;
+   TestSoln::High_resolution = false;
+   TestSoln::Pressure = 1.0;
+   TestSoln::nu = 0.3;
+   TestSoln::Length_of_strip = 1.0;
  };
 
  // Label for output
@@ -639,13 +558,6 @@ int main(int argc, char **argv)
  // Use a 3rd order curved Bell element, we don't need to upgrade it.
  UnstructuredFvKProblem<KirchhoffPlateBendingC1CurvedBellElement> problem(element_area);
  problem.max_newton_iterations() = 1;
-
- // Get some timings
- double tt_start = 0.0;
- if (Global_timings::Doc_comprehensive_timings)
-  {
-     tt_start=TimingHelpers::timer();
-  }
 
  // Newton Solve
  problem.newton_solve();
@@ -661,12 +573,4 @@ int main(int argc, char **argv)
  oomph_info << "---------------------------------------------" << std::endl;
  oomph_info << std::endl;
 
- // Document the total timing
- if (Global_timings::Doc_comprehensive_timings)
-  {
-   // Total time for problem
-   oomph_info
-    << "Total problem time: "
-    << TimingHelpers::timer()-tt_start << std::endl;
-  }
 } //End of main
