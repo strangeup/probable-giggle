@@ -63,13 +63,13 @@ namespace TestSoln
  double Length=1.0;
 
  /// Poisson's ratio
- double Nu = 0.3; /// hierher FvK parameter (Poisson's ratio)
-
- // Flag for high resolution output
- bool High_resolution = false;
+ double Nu = 0.3;
 
   /// Perturbation
  double Pressure=1.0;
+
+ // Flag for high resolution output
+ bool High_resolution = false;
 
  bool is_boundary_held_at_zero_slope(unsigned& ibound)
  {
@@ -89,7 +89,7 @@ namespace TestSoln
  {
     pressure = Pressure;
  }
-}
+} // end of TestSoln 
 
 //==start_of_problem_class============================================
 /// Class definition
@@ -116,7 +116,6 @@ public:
    // Close the trace
    Trace_file.close();
    // Delete the Surface and Bulk mesh
-   delete this->Surface_mesh_pt;
    delete Bulk_mesh_pt;
   };
 
@@ -187,9 +186,6 @@ private:
   /// Pointers to specific mesh
   TriangleMesh<ELEMENT>* Bulk_mesh_pt;
 
-  /// Pointer to the "surface" mesh
-  Mesh* Surface_mesh_pt;
-
 private:
   // The initial (and maximum) element area
   double Element_area;
@@ -256,8 +252,9 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
 
  // Set the element area into the mesh arguments
  Triangle_mesh_parameters_pt->element_area() = element_area;
-}
+} // end of set_up_rectangular_mesh
 
+/// Constructor for the FvK problem
 template<class ELEMENT>
 UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
   : Element_area(element_area), Triangle_mesh_parameters_pt(nullptr),
@@ -269,14 +266,8 @@ UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
  set_up_rectangular_mesh(element_area);
  Bulk_mesh_pt = new TriangleMesh<ELEMENT>(*Triangle_mesh_parameters_pt);
 
- // Create "surface mesh" that will contain only the bc
- // elements. The constructor just creates the mesh without
- // giving it any elements, nodes, etc.
- Surface_mesh_pt = new Mesh;
-
- // Add the two sub meshes to the problem
+ // Add the sub meshes to the problem
  add_sub_mesh(Bulk_mesh_pt);
- add_sub_mesh(Surface_mesh_pt);
 
  // Build the Problem's global mesh from its various sub-meshes
  build_global_mesh();
@@ -294,7 +285,7 @@ UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
 
  // Assign the equation numbers
  assign_equation_numbers();
-}
+} // end_constructor
 
 //==start_of_complete======================================================
  /// Set boundary condition exactly, and complete the build of
@@ -317,7 +308,7 @@ void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
   }
  // Apply boundary conditions
  apply_boundary_conditions();
-}
+} //end_of_complete
 
 //==start_of_apply_bc=====================================================
 /// Helper function to apply boundary conditions
@@ -334,18 +325,11 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
  // loop over boundaries
  for(unsigned ibound=0;ibound<Number_of_boundaries;ibound++)
   {
-   const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound),
-                  DIM = 2;
+   const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
 
    for (unsigned inod=0;inod<num_nod;inod++)
     {
      Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
-     // Initialize exact_w and node position to all zeros
-     Vector<double> node_position(DIM);
-
-     // Fill in node position
-     for(unsigned idim = 0; idim<DIM; ++idim)
-      { node_position[idim] =  nod_pt->x(idim); }
 
      // Dofs (by default) at a node X = (x0, x1) are:
      // #0 - w(x1,x2)
