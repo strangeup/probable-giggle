@@ -41,23 +41,23 @@ using namespace oomph;
 using MathematicalConstants::Pi;
 
 // =========================================================================
+// The boundaries are enumerated as follows:
+//
+// 0 :  x = - 1/2, y = [ -L/2 , L/2], Normal : -(1,0)
+// 1 :  y = + L/2, x = [ -1/2 , 1/2], Normal : +(0,1)
+// 2 :  x = + 1/2, y = [ -L/2 , L/2], Normal : +(1,0)
+// 3 :  y = - L/2, x = [ -1/2 , 1/2], Normal : -(0,1)
+//
+//           1
+//        _______
+//       |       |
+//    0  |       |  2
+//       |_______|
+//
+//           3
+
 namespace TestSoln
 {
- // The boundaries are enumerated as follows:
- //
- // 0 :  x = - 1/2, y = [ -L/2 , L/2], Normal : -(1,0)
- // 1 :  y = + L/2, x = [ -1/2 , 1/2], Normal : +(0,1)
- // 2 :  x = + 1/2, y = [ -L/2 , L/2], Normal : +(1,0)
- // 3 :  y = - L/2, x = [ -1/2 , 1/2], Normal : -(0,1)
- //
- //           1
- //        _______
- //       |       |
- //    0  |       |  2
- //       |_______|
- //
- //           3
-
  /// Nondim length of strip (width is lengthscale and therefore 1)
  // length is in the y-direction, width=1 in y
  double Length=1.0;
@@ -65,23 +65,24 @@ namespace TestSoln
  /// Poisson's ratio
  double Nu = 0.3;
 
-  /// Perturbation
+  /// Nondimensional pressure scale
  double Pressure=1.0;
 
  // Flag for high resolution output
  bool High_resolution = false;
 
+ /// Bool to determine which boundaries are at zero slope
  bool is_boundary_held_at_zero_slope(unsigned& ibound)
  {
     // Free/Pinned/Sliding/Clamped
-    return ibound == 2 || ibound == 3;
+    return (ibound == 2 || ibound == 3);
  }
 
  /// Bool to determine which boundaries to pin
  bool is_boundary_pinned(unsigned& ibound)
  {
     // Free/Pinned/Sliding/Clamped
-    return ibound == 1 || ibound == 3;
+    return (ibound == 1 || ibound == 3);
  }
 
  // Assigns the value of pressure depending on the position (x,y)
@@ -136,14 +137,6 @@ public:
  /// Doc the solution
  void doc_solution(DocInfo& doc_info);
 
- /// \short Overloaded version of the problem's access function to
- /// the mesh. Recasts the pointer to the base Mesh object to
- /// the actual mesh type.
- TriangleMesh<ELEMENT>* mesh_pt()
-  {
-   return dynamic_cast<RefineableTriangleMesh<ELEMENT>*> (Problem::mesh_pt());
-  }
-
  /// Unpin all of the dofs
  void unpin_all_dofs()
    {
@@ -191,6 +184,8 @@ private:
   double Element_area;
   // The mesh parameters
   TriangleMeshParameters* Triangle_mesh_parameters_pt;
+  // We must keep these alive, or else if we try to re-mesh
+  // we will either have dangling pointers or a memory leak
   TriangleMeshClosedCurve* Outer_boundary_pt;
   Vector<TriangleMeshCurveSection*> Outer_boundary_polyline_pt;
   const unsigned Number_of_boundaries = 4;
@@ -199,7 +194,7 @@ private:
 // Free function helper in anonymous namepace (use a lambda in c++11)
 namespace {
  // Helper to make three vertice line from two vertices
- Vector<Vector<double>> make_three_vertice_line(const Vector<double>& x1,
+ Vector<Vector<double>> make_line(const Vector<double>& x1,
     const Vector<double>& x2)
   {
     const unsigned number_of_vertices = 3, DIM = x1.size();
@@ -239,7 +234,7 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
    const unsigned icorner1 = boundary_id % 4,
                   icorner2 = (boundary_id + 1) % 4;
    Outer_boundary_polyline_pt[boundary_id] = new TriangleMeshPolyLine(
-      ::make_three_vertice_line(corners[icorner1], corners[icorner2]),
+      ::make_line(corners[icorner1], corners[icorner2]),
       boundary_id);
   }
 
@@ -265,12 +260,7 @@ UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
  // Set up the mesh
  set_up_rectangular_mesh(element_area);
  Bulk_mesh_pt = new TriangleMesh<ELEMENT>(*Triangle_mesh_parameters_pt);
-
- // Add the sub meshes to the problem
- add_sub_mesh(Bulk_mesh_pt);
-
- // Build the Problem's global mesh from its various sub-meshes
- build_global_mesh();
+ mesh_pt() = Bulk_mesh_pt;
 
  oomph_info<<"Number Elements "<<Bulk_mesh_pt->nelement()<<std::endl;
  oomph_info<<"Number Nodes "<<Bulk_mesh_pt->nnode()<<std::endl;
@@ -458,8 +448,6 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
 //============================================================
 int main(int argc, char **argv)
 {
- feenableexcept(FE_INVALID | FE_DIVBYZERO);
-
  // Store command line arguments
  CommandLineArgs::setup(argc,argv);
 
