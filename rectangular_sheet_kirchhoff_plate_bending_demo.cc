@@ -107,17 +107,10 @@ public:
  /// Destructor
  ~UnstructuredFvKProblem()
   {
-   // Clean up boundary data
-   delete Outer_boundary_pt;
-   // Delete the polyline data
-   for(unsigned ibound = 0; ibound< Outer_boundary_polyline_pt.size(); ++ibound)
-    { delete Outer_boundary_polyline_pt[ibound]; }
-   // Delete the parameters
-   delete Triangle_mesh_parameters_pt;
    // Close the trace
    Trace_file.close();
    // Delete the Surface and Bulk mesh
-   delete Bulk_mesh_pt;
+   delete mesh_pt();
   };
 
   /// Update after solve (empty)
@@ -141,11 +134,11 @@ public:
  void unpin_all_dofs()
    {
     // Get total number of nodes
-    unsigned n_node=Bulk_mesh_pt->nnode();
+    unsigned n_node=mesh_pt()->nnode();
     // Loop over nodes
     for(unsigned inod=0;inod<n_node;++inod)
      {
-      Node* nod_pt=Bulk_mesh_pt->node_pt(inod);
+      Node* nod_pt=mesh_pt()->node_pt(inod);
       const unsigned ndof_type=6;
       for(unsigned i=0;i<ndof_type;++i)
        { nod_pt->unpin(i); }
@@ -170,24 +163,15 @@ private:
    // Assign equations numbers and document
    oomph_info << "Number of equations: "
               << this->assign_eqn_numbers() << '\n';
-   oomph_info << "Number of elements: " <<Bulk_mesh_pt->nelement() << std::endl;
+   oomph_info << "Number of elements: " <<mesh_pt()->nelement() << std::endl;
    }
 
   /// Create the mesh
-  void set_up_rectangular_mesh(const double& element_area);
-
-  /// Pointers to specific mesh
-  TriangleMesh<ELEMENT>* Bulk_mesh_pt;
+  TriangleMeshParameters* set_up_triangle_mesh_parameters_for_rectangle(const double& element_area);
 
 private:
   // The initial (and maximum) element area
   double Element_area;
-  // The mesh parameters
-  TriangleMeshParameters* Triangle_mesh_parameters_pt;
-  // We must keep these alive, or else if we try to re-mesh
-  // we will either have dangling pointers or a memory leak
-  TriangleMeshClosedCurve* Outer_boundary_pt;
-  Vector<TriangleMeshCurveSection*> Outer_boundary_polyline_pt;
   const unsigned Number_of_boundaries = 4;
 }; // end_of_problem_class
 
@@ -210,7 +194,7 @@ namespace {
 
 /// Set-up the rectangular mesh for the problem
 template <class ELEMENT>
-void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
+TriangleMeshParameters* UnstructuredFvKProblem<ELEMENT>::set_up_triangle_mesh_parameters_for_rectangle(
  const double& element_area)
 {
  // Local copies
@@ -226,44 +210,46 @@ void UnstructuredFvKProblem<ELEMENT>::set_up_rectangular_mesh(
  corners[3][0] =  width; corners[3][1] = -length;
 
  // >> Setting up the domain with PolyLines
- Outer_boundary_polyline_pt.resize(num_boundaries);
+ auto outer_boundary_polyline_pt = Vector<TriangleMeshCurveSection*>();
+ outer_boundary_polyline_pt.resize(num_boundaries);
 
  // Labelling from Boundary 0 (left boundary), fill create boundary lines
  for(unsigned boundary_id = 0; boundary_id < num_boundaries; ++boundary_id)
   {
    const unsigned icorner1 = boundary_id % 4,
                   icorner2 = (boundary_id + 1) % 4;
-   Outer_boundary_polyline_pt[boundary_id] = new TriangleMeshPolyLine(
+   outer_boundary_polyline_pt[boundary_id] = new TriangleMeshPolyLine(
       ::make_line(corners[icorner1], corners[icorner2]),
       boundary_id);
   }
 
  // The outer polygon
- Outer_boundary_pt =
-  new TriangleMeshClosedCurve(Outer_boundary_polyline_pt);
+ auto outer_boundary_pt =
+  new TriangleMeshClosedCurve(outer_boundary_polyline_pt);
 
  //Create mesh parameters object
- Triangle_mesh_parameters_pt = new TriangleMeshParameters(Outer_boundary_pt);
+ auto triangle_mesh_parameters_pt = new TriangleMeshParameters(outer_boundary_pt);
 
  // Set the element area into the mesh arguments
- Triangle_mesh_parameters_pt->element_area() = element_area;
-} // end of set_up_rectangular_mesh
+ triangle_mesh_parameters_pt->element_area() = element_area;
+
+ return triangle_mesh_parameters_pt;
+} // end of set_up_triangle_mesh_parameters_for_rectangle
 
 /// Constructor for the FvK problem
 template<class ELEMENT>
 UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
-  : Element_area(element_area), Triangle_mesh_parameters_pt(nullptr),
-    Outer_boundary_pt(nullptr), Outer_boundary_polyline_pt()
+  : Element_area(element_area) 
 {
  // Set the maximum residuals for Newton iterations
  Problem::Max_residuals = 1000;
+ // Creates a triangle_mesh_parameters instance
+ auto triangle_mesh_parameters_pt = set_up_triangle_mesh_parameters_for_rectangle(element_area);
  // Set up the mesh
- set_up_rectangular_mesh(element_area);
- Bulk_mesh_pt = new TriangleMesh<ELEMENT>(*Triangle_mesh_parameters_pt);
- mesh_pt() = Bulk_mesh_pt;
+ mesh_pt() = new TriangleMesh<ELEMENT>(*triangle_mesh_parameters_pt);
 
- oomph_info<<"Number Elements "<<Bulk_mesh_pt->nelement()<<std::endl;
- oomph_info<<"Number Nodes "<<Bulk_mesh_pt->nnode()<<std::endl;
+ oomph_info<<"Number Elements "<<mesh_pt()->nelement()<<std::endl;
+ oomph_info<<"Number Nodes "<<mesh_pt()->nnode()<<std::endl;
 
  // Open the trace and start recording
  char filename[100];
@@ -275,6 +261,16 @@ UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
 
  // Assign the equation numbers
  assign_equation_numbers();
+
+ // Clean up assigned memory
+ auto outer_boundary_pt = triangle_mesh_parameters_pt->outer_boundary_pt()[0];
+ const unsigned num_bounds = outer_boundary_pt->max_boundary_id();
+ for(unsigned ibound = 0; ibound< num_bounds;  ++ibound)
+  { 
+   delete outer_boundary_pt->curve_section_pt(ibound);
+  }
+ delete outer_boundary_pt; 
+ delete triangle_mesh_parameters_pt;
 } // end_constructor
 
 //==start_of_complete======================================================
@@ -286,11 +282,11 @@ void UnstructuredFvKProblem<ELEMENT>::complete_problem_setup()
 {
  // -------------------------------------------------------------------
  // Complete the build of all elements so they are fully functional
- const unsigned n_element = Bulk_mesh_pt->nelement();
+ const unsigned n_element = mesh_pt()->nelement();
  for(unsigned e=0;e<n_element;e++)
   {
    // Upcast from GeneralisedElement to the present element
-   ELEMENT* el_pt = dynamic_cast<ELEMENT*>(Bulk_mesh_pt->element_pt(e));
+   ELEMENT* el_pt = dynamic_cast<ELEMENT*>(mesh_pt()->element_pt(e));
 
    //Set the pressure function pointers and the physical constants
    el_pt->nu_pt() = &TestSoln::Nu;
@@ -315,11 +311,11 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
  // loop over boundaries
  for(unsigned ibound=0;ibound<Number_of_boundaries;ibound++)
   {
-   const unsigned num_nod=Bulk_mesh_pt->nboundary_node(ibound);
+   const unsigned num_nod=mesh_pt()->nboundary_node(ibound);
 
    for (unsigned inod=0;inod<num_nod;inod++)
     {
-     Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
+     Node* nod_pt=mesh_pt()->boundary_node_pt(ibound,inod);
 
      // Dofs (by default) at a node X = (x0, x1) are:
      // #0 - w(x1,x2)
@@ -336,10 +332,14 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
       {
        // Solution and tangential derivatives on the boundary {w, dw/dt, d2wdt2}
        const Vector<double> solution_on_boundary(3,0.0);
+       // Is this boundary x-axis aligned or y-axis aligned
+       const bool is_y_aligned = ibound % 2 == 0;
        // Tangent direction: y-axis on even and x-axis on odd boundaries
-       const unsigned iw = 0,
-                      idwdt = (ibound % 2 == 0 ? 2 : 1),
-                      id2wdt2 = (ibound % 2 == 0 ? 5 : 3);
+       // Dof number for value dof, derivative wrt. tangent dof and 2nd derivative
+       // wrt tangent dof
+       const unsigned iw = 0;
+       const unsigned idwdt = (is_y_aligned ? 2 : 1);
+       const unsigned id2wdt2 = (is_y_aligned  % 2 == 0 ? 5 : 3);
 
        // Pin value w(x,y) at boundary
        nod_pt->pin(iw);
@@ -360,7 +360,7 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
        // Normal and cross derivative on the boundary {dw/dn, dw2/dwdn}
        const Vector<double> normal_derivative_on_boundary(2,0.0);
        // Get node
-       Node* nod_pt=Bulk_mesh_pt->boundary_node_pt(ibound,inod);
+       Node* nod_pt=mesh_pt()->boundary_node_pt(ibound,inod);
 
        // Normal direction: x-axis on even and y-axis on odd boundaries
        const unsigned idwdn = (ibound % 2 == 0 ? 1 : 2),
@@ -408,16 +408,16 @@ void UnstructuredFvKProblem<ELEMENT>::doc_solution(DocInfo& doc_info)
 
   // Number of plot points
   unsigned const npts_coarse= 2;
-  ::output_solution(doc_info, this->Bulk_mesh_pt, "coarse_soln", npts_coarse);
+  ::output_solution(doc_info, this->mesh_pt(), "coarse_soln", npts_coarse);
 
   // Output with very high resolution
   unsigned const npts = TestSoln::High_resolution ? 25 : 5;
-  ::output_solution(doc_info, this->Bulk_mesh_pt, "soln", npts);
-  ::output_solution(doc_info, this->Bulk_mesh_pt, "bc", npts);
+  ::output_solution(doc_info, this->mesh_pt(), "soln", npts);
+  ::output_solution(doc_info, this->mesh_pt(), "bc", npts);
 
  // Find the solution at x = y = 0
  MeshAsGeomObject* Mesh_as_geom_obj_pt=
-  new MeshAsGeomObject(Bulk_mesh_pt);
+  new MeshAsGeomObject(mesh_pt());
  Vector<double> s(2);
  GeomObject* geom_obj_pt=0;
  Vector<double> r(2,0.0);
