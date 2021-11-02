@@ -437,7 +437,7 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
        // wrt tangent dof
        const unsigned iw = 0;
        const unsigned idwdt = (is_y_aligned ? 2 : 1);
-       const unsigned id2wdt2 = (is_y_aligned  % 2 == 0 ? 5 : 3);
+       const unsigned id2wdt2 = (is_y_aligned  ? 5 : 3);
 
        // Pin value w(x,y) at boundary
        nod_pt->pin(iw);
