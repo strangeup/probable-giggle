@@ -386,8 +386,8 @@ namespace {
      char filename[100];
      ofstream some_file;
      sprintf(filename,"%s/%s%i.dat",
-             basename.c_str(),
              doc_info.directory().c_str(),
+             basename.c_str(),
              doc_info.number());
      some_file.open(filename);
      mesh_pt->output(some_file,npts);
