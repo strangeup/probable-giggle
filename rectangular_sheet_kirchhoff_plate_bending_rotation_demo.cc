@@ -91,6 +91,10 @@ namespace TestSoln
     pressure = Pressure;
  }
 
+ // Function pointer type for normal/tangent function
+ typedef void (*BasisVectorsFctPt) (const Vector<double>& x, Vector<double>& b1,
+  Vector<double>& b2, DenseMatrix<double>& Db1, DenseMatrix<double>& Db2);
+
  // The normal and tangential directions.
  void get_normal_and_tangent(const Vector<double>& x, Vector<double>& n, 
   Vector<double>& t, DenseMatrix<double>& Dn, DenseMatrix<double>& Dt)
@@ -299,6 +303,9 @@ UnstructuredFvKProblem<ELEMENT>::UnstructuredFvKProblem(double element_area)
  sprintf(filename, "RESLT/trace.dat");
  Trace_file.open(filename);
 
+ // Set up rotated dofs
+ rotate_edge_degrees_of_freedom();
+
  // Complete the problem setup
  complete_problem_setup();
 
@@ -351,6 +358,7 @@ rotate_edge_degrees_of_freedom()
      unsigned inode(0);
 
      // Fill in the bnode Vector
+     Vector<std::pair<unsigned,TestSoln::BasisVectorsFctPt> > boundary_node_rotation_lookup;
      for (unsigned n=0; n<nnode;++n)
       {
        // If it is on the boundary
@@ -359,6 +367,10 @@ rotate_edge_degrees_of_freedom()
          // Set up the Vector
          bnode[inode]=n;
          ++inode;
+         // Use a single function as the mapping for all boundaries
+         // In general we may use different mappings, for different boundaries
+         boundary_node_rotation_lookup.push_back(
+           std::pair<unsigned,TestSoln::BasisVectorsFctPt>(n, &TestSoln::get_normal_and_tangent));
         }
       }
 
@@ -366,7 +378,10 @@ rotate_edge_degrees_of_freedom()
     oomph_info<<"Element "<<e<<" has "<<bnode<< " nodes on the boundary.\n";
 
     // Now set-up rotated dofs for the elements
-    el_pt->set_up_rotated_dofs(nbnode, bnode, &TestSoln::get_normal_and_tangent);
+    if(!boundary_node_rotation_lookup.empty())
+     {
+        el_pt->set_up_rotated_dofs(boundary_node_rotation_lookup);
+     }
    }
  }
 }// end create traction elements
@@ -415,13 +430,33 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
     {
      Node* nod_pt=mesh_pt()->boundary_node_pt(ibound,inod);
 
-     // Dofs (by default) at a node X = (x0, x1) are:
+     // We have rotated the dofs such that:
      // #0 - w(x1,x2)
-     // #1 - d/dx w (x0,x1) 
-     // #2 - d/dy w (x0,x1) 
-     // #3 - d2/dx2 w (x0,x1) 
-     // #4 - d2/dxdy w (x0,x1) 
-     // #5 - d2/dy2 w(x0,x1) 
+     // #1 - d/dn w (x0,x1) 
+     // #2 - d/dt w (x0,x1) 
+     // #3 - d2/dn2 w (x0,x1) 
+     // #4 - d2/dtdn w (x0,x1) 
+     // #5 - d2/dt2 w(x0,x1) 
+     // Enumerate dofs 
+     unsigned iw = 0, idwdn = 1, idwdt = 2, id2wdt2 = 5,
+              id2wdndt = 4;
+
+     // Find corner points
+     if(nod_pt->is_on_boundary(int(ibound) + 1) % 4 ||
+        nod_pt->is_on_boundary(int(ibound) - 1) % 4 ) {
+        std::cout<<"Found corner point" <<std::endl;
+
+        // Corner points are rotated according to top and bottom
+        // Even points have tangent and normal reversed
+        if( ibound % 2 == 0) {
+             iw = 0;
+             idwdn = 2;
+             idwdt = 1;
+             id2wdt2 = 3,
+             id2wdndt = 4;
+        }
+     }
+
 
      // If the boundary is to be pinned:
      // Set w(x1, x2), dw/dt (x1, x2) and d2w/dt2 (x1, x2) for all nodes on the
@@ -430,14 +465,6 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
       {
        // Solution and tangential derivatives on the boundary {w, dw/dt, d2wdt2}
        const Vector<double> solution_on_boundary(3,0.0);
-       // Is this boundary x-axis aligned or y-axis aligned
-       const bool is_y_aligned = ibound % 2 == 0;
-       // Tangent direction: y-axis on even and x-axis on odd boundaries
-       // Dof number for value dof, derivative wrt. tangent dof and 2nd derivative
-       // wrt tangent dof
-       const unsigned iw = 0;
-       const unsigned idwdt = (is_y_aligned ? 2 : 1);
-       const unsigned id2wdt2 = (is_y_aligned  ? 5 : 3);
 
        // Pin value w(x,y) at boundary
        nod_pt->pin(iw);
@@ -460,9 +487,7 @@ void UnstructuredFvKProblem<ELEMENT>::apply_boundary_conditions()
        // Get node
        Node* nod_pt=mesh_pt()->boundary_node_pt(ibound,inod);
 
-       // Normal direction: x-axis on even and y-axis on odd boundaries
-       const unsigned idwdn = (ibound % 2 == 0 ? 1 : 2),
-                      id2wdndt = 4;
+       // Pin the normal derivative and the cross derivative
        // Pin the normal derivatives, d/dn w(x,y)
        nod_pt->pin(idwdn);
        nod_pt->set_value(idwdn, normal_derivative_on_boundary[0]);
@@ -484,8 +509,8 @@ namespace {
      char filename[100];
      ofstream some_file;
      sprintf(filename,"%s/%s%i.dat",
-             basename.c_str(),
              doc_info.directory().c_str(),
+             basename.c_str(),
              doc_info.number());
      some_file.open(filename);
      mesh_pt->output(some_file,npts);
